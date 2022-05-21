@@ -120,11 +120,11 @@
 			ensure_root(origin)?;
 			ensure!(!TransitNodes::<T>::contains_key(&transit_node), Error::<T>::TransitPointNotFound);
 
-			let ncount = NodeUID::<T>::get();
-			let ncountp1 = ncount.checked_add(1).ok_or(ArithmeticError::Overflow)?;
+			let uid = NodeUID::<T>::get();
+			let new_uid = uid.checked_add(1).ok_or(ArithmeticError::Overflow)?;
 
-			TransitNodes::<T>::insert(&transit_node,&ncountp1);
-			NodeUID::<T>::put(ncountp1);
+			TransitNodes::<T>::insert(&transit_node,&new_uid);
+			NodeUID::<T>::put(new_uid);
 
 			Self::deposit_event(Event::TransitPointCreated(transit_node));
 			Ok(())
@@ -152,8 +152,8 @@
 
 			// Set uid
 
-			let ncount = ShipmentUID::<T>::get();
-			let ncountp1 = ncount.checked_add(1).ok_or(ArithmeticError::Overflow)?;
+			let uid = ShipmentUID::<T>::get();
+			let new_uid = uid.checked_add(1).ok_or(ArithmeticError::Overflow)?;
 
 			let index = 1;
 			let next_owner = route_vec.get(index).expect("There should be next owner!").clone();
