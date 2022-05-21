@@ -1,6 +1,6 @@
 # Asset Tracking System by Substrate
 
-_Shipment Tracking and Verification on Substrate_
+## Shipment Tracking and Verification on Substrate_
 
 The aim of this project is to build a shipment tracking and verification blockchain using substrate. The “hello world” example will have the functionality to create a shipment with a unique ID at predefined origin points. To keep things simple the route will be defined only at the init stage and will be assumed to be static for the purpose of the demo. The verification component consists of generating a secret key and a temporary owner for every shipment at every transit point. The key and the owner will be updated at every transit point.   
 
