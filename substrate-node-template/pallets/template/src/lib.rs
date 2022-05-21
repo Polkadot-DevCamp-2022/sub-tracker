@@ -7,7 +7,6 @@
       use frame_support::{
 		  pallet_prelude::*,
 		  traits::{Currency, Randomness},
-		  inherent::Vec,
 	  };
       use frame_system::pallet_prelude::*;
 	  use scale_info::TypeInfo;
@@ -25,11 +24,11 @@
 	  #[derive(Clone, Encode, Decode, PartialEq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
 	  #[scale_info(skip_type_params(T))]
 	  pub struct Shipment<T: Config> {
-		pub uid: u64,
 		pub creator: T::AccountId,
 		owner: T::AccountId,
 		pub fees: Option<BalanceOf<T>>,
 		pub status: ShipmentStatus,
+		pub route: BoundedVec<T::AccountId,T::MaxSize>,
 	  }
 
 	  // Shipment Status enum
@@ -54,6 +53,7 @@
       pub trait Config: frame_system::Config {
           type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		  type Currency: Currency<Self::AccountId>;
+		  type MaxSize: Get<u32>;
       }
 
       // TODO: Update the `event` block below
@@ -143,17 +143,23 @@
 		}
 
 		#[pallet::weight(0)]
-		pub fn create_shipment(origin: OriginFor<T>, route: Vec<u8>) 
+		pub fn create_shipment(origin: OriginFor<T>,route_vec: BoundedVec<T::AccountId,T::MaxSize>) 
 		-> DispatchResult {
 			let who = ensure_signed(origin)?;
-
-			//Check if caller is the owner
 
 			ensure!(TransitNodes::<T>::contains_key(&who), Error::<T>::UnAuthorizedCaller);
 
 			// More checks needed ?
 
 			// Set uid
+
+			let ncount = ShipmentUID::<T>::get();
+			let ncountp1 = ncount.checked_add(1).ok_or(ArithmeticError::Overflow)?;
+
+			let index = 1;
+			let next_owner = route_vec.get(index);
+
+			let shipment = Shipment::<T> {creator: who, owner: next_owner, fees: None, status: ShipmentStatus::InTransit,route: route_vec};
 
 			// Set caller as the creator
 
