@@ -267,6 +267,7 @@ impl pallet_sudo::Config for Runtime {
 impl pallet_template::Config for Runtime {
 	type Event = Event;
 	type Currency = Balances;
+	type KeyRandomNess = RandomnessCollectiveFlip;
 	type MaxSize = frame_support::traits::ConstU32<100>;
 }
 
