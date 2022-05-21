@@ -41,6 +41,7 @@
 	// The struct on which we build all of our Pallet logic.
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
     /* Placeholder for defining custom types. */
@@ -95,6 +96,14 @@
 		_,
 		u64,
 		ValueQuery,
+	>;
+
+	#[pallet::storage]
+	pub(super) type Shipments<T:Config> = StorageMap<
+		_,
+		Blake2_128Concat,
+		u64,
+		Shipment<T>,
 	>;
 
     #[pallet::call]
