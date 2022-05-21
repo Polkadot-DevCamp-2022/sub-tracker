@@ -19,8 +19,6 @@
 
 	type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
-	//Shipment Struct
-
 	#[derive(Clone, Encode, Decode, PartialEq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
 	#[scale_info(skip_type_params(T))]
 	pub struct Shipment<T: Config> {
@@ -31,7 +29,6 @@
 		pub route: BoundedVec<T::AccountId, T::MaxSize>,
 	}
 
-	// Shipment Status enum
 	#[derive(Clone, Encode, Decode, PartialEq, Copy, RuntimeDebug, TypeInfo, MaxEncodedLen)]
 	#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 	pub enum ShipmentStatus {
@@ -48,7 +45,6 @@
 
     /* Placeholder for defining custom types. */
 
-	// TODO: Update the `config` block below
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
@@ -57,36 +53,27 @@
 		type MaxSize: Get<u32>;
 	}
 
-	// TODO: Update the `event` block below
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// Event emitted when a new Transit Point is created
 		TransitPointCreated(T::AccountId),
-		/// Event emitted when a Transit Point is removed
 		TransitPointRemoved(T::AccountId),
-		/// Event emitted when a new shipment is created
-		ShipmentInit(T::AccountId),
-		/// Event emitted when shipment keys and owners are updated
+		ShipmentCreated(T::AccountId),
 		ShipmentUpdated(T::AccountId),
-		/// Event emitted when shipment is received at the destination
 		ShipmentReceived(T::AccountId),
 	}
 
-	// TODO: Update the `error` block below
 	#[pallet::error]
 	pub enum Error<T> {
-		/// Transit Point already exists
-		TransitPointExists,
-		/// Transit Point does not exist
+		InvalidRoute,
+		OwnerNotFound,
+		ShipmentNotFound,
+		TransitPointAlreadyExists,
 		TransitPointNotFound,
-		/// Not Authorized to Create Shipment
-		UnAuthorizedCaller,
-
-		NoOwner
+		UnauthorizedCaller,
 	}
 
-	// TODO: add #[pallet::storage] block
+	// transit_node -> node_uid map
 	#[pallet::storage]
 	pub(super) type TransitNodes<T:Config> = StorageMap<
 		_,
@@ -110,20 +97,19 @@
 		ValueQuery,
 	>;
 
-      // TODO: Update the `call` block below
     #[pallet::call]
     impl<T: Config> Pallet<T> {
 
 		#[pallet::weight(0)]
 		pub fn create_new_transit_node(origin: OriginFor<T>, transit_node: T::AccountId) -> DispatchResult {
-			
+
 			ensure_root(origin)?;
-			ensure!(!TransitNodes::<T>::contains_key(&transit_node), Error::<T>::TransitPointNotFound);
+			ensure!(!TransitNodes::<T>::contains_key(&transit_node), Error::<T>::TransitPointAlreadyExists);
 
 			let uid = NodeUID::<T>::get();
 			let new_uid = uid.checked_add(1).ok_or(ArithmeticError::Overflow)?;
 
-			TransitNodes::<T>::insert(&transit_node,&new_uid);
+			TransitNodes::<T>::insert(&transit_node, &new_uid);
 			NodeUID::<T>::put(new_uid);
 
 			Self::deposit_event(Event::TransitPointCreated(transit_node));
@@ -132,9 +118,9 @@
 
 		#[pallet::weight(0)]
 		pub fn remove_transit_node(origin: OriginFor<T>, transit_node: T::AccountId) -> DispatchResult {
-			
+
 			ensure_root(origin)?;
-			ensure!(TransitNodes::<T>::contains_key(&transit_node), Error::<T>::TransitPointExists);
+			ensure!(TransitNodes::<T>::contains_key(&transit_node), Error::<T>::TransitPointNotFound);
 
 			TransitNodes::<T>::remove(&transit_node);
 
@@ -144,52 +130,35 @@
 
 		#[pallet::weight(0)]
 		pub fn create_shipment(origin: OriginFor<T>, route_vec: BoundedVec<T::AccountId, T::MaxSize>) -> DispatchResult {
-			let who = ensure_signed(origin)?;
 
-			ensure!(TransitNodes::<T>::contains_key(&who), Error::<T>::UnAuthorizedCaller);
-
-			// More checks needed ?
-
-			// Set uid
+			let transit_node = ensure_signed(origin)?;
+			ensure!(TransitNodes::<T>::contains_key(&transit_node), Error::<T>::UnauthorizedCaller);
+			ensure!(route_vec.len() > 1, Error::<T>::InvalidRoute);
 
 			let uid = ShipmentUID::<T>::get();
 			let new_uid = uid.checked_add(1).ok_or(ArithmeticError::Overflow)?;
 
-			let index = 1;
-			let next_owner = route_vec.get(index).expect("There should be next owner!").clone();
-
 			let shipment = Shipment::<T> {
-				creator: who, 
-				owner: next_owner, 
-				fees: None, 
+				creator: transit_node.clone(),
+				owner: route_vec.get(1).unwrap().clone(),
+				fees: None, // Todo: Calculate fees based on the route
 				status: ShipmentStatus::InTransit,
 				route: route_vec
 			};
 
-			// Set caller as the creator
-
-			// Set the route
-
-			// Calculate Shipment fees based on the route
-
-			// Create the shipment
-
 			//create Restricted Key => Create a type first so the shipment uid maps to the type (TO-DO)
+			// Todo: store shipment (to map?)
 
-			//Set next Transit Node as the owner
-
+			Self::deposit_event(Event::ShipmentCreated(transit_node));
 			Ok(())
 		}
 
 		#[pallet::weight(0)]
-		pub fn update_shipment(origin: OriginFor<T>, uid: u64 ) -> DispatchResult {
+		pub fn update_shipment(origin: OriginFor<T>, uid: u64) -> DispatchResult {
 			// This function will take a key parameter but we
 			// don't know what the type will be. I'm working on it
-			let who = ensure_signed(origin)?;
-
-			ensure!(TransitNodes::<T>::contains_key(&who), Error::<T>::UnAuthorizedCaller);
-
-			// Check if the shipment owner is the one who is calling the function. Transaction fails otherwise
+			let transit_node = ensure_signed(origin)?;
+			ensure!(TransitNodes::<T>::contains_key(&transit_node), Error::<T>::UnauthorizedCaller);
 
 			// Match the input key with the one stored on the blockchain (Not implemented yet. see the first comment in this function)
 
@@ -203,7 +172,7 @@
 
 	// Helpful functions
 	impl<T: Config> Pallet<T> {
-		
+
 		fn gen_key(&self) -> [u8; 16] {
 			let payload = (
 				T::KeyRandomNess::random(&b"key"[..]).0,
