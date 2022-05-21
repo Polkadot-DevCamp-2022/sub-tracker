@@ -12,6 +12,7 @@
       use frame_system::pallet_prelude::*;
 	  use scale_info::TypeInfo;
 	  use sp_io::hashing::blake2_128;
+	  use sp_runtime::ArithmeticError;
 
 	  #[cfg(feature = "std")]
 	  use frame_support::serde::{Deserialize, Serialize};
@@ -89,8 +90,22 @@
 	      _,
 		  Blake2_128Concat,
 		  T::AccountId,
-		  u16,
+		  u8,
 		  OptionQuery,
+	  >;
+
+	  #[pallet::storage]
+	  pub(super) type NodeUID<T:Config>=StorageValue<
+	      _,
+		  u8,
+		  ValueQuery,
+	  >;
+
+	  #[pallet::storage]
+	  pub(super) type ShipmentUID<T:Config>=StorageValue<
+	      _,
+		  u64,
+		  ValueQuery,
 	  >;
 
       // TODO: Update the `call` block below
@@ -104,7 +119,11 @@
 
 			ensure!(!TransitNodes::<T>::contains_key(&transit_node), Error::<T>::TransitPointNotFound);
 
-			TransitNodes::<T>::insert(&transit_node,0);
+			let ncount = NodeUID::<T>::get();
+			let ncountp1 = ncount.checked_add(1).ok_or(ArithmeticError::Overflow)?;
+
+			TransitNodes::<T>::insert(&transit_node,&ncountp1);
+			NodeUID::<T>::put(ncountp1);
 
 			Self::deposit_event(Event::TransitPointCreated(transit_node));
 			Ok(())
@@ -126,11 +145,11 @@
 		#[pallet::weight(0)]
 		pub fn create_shipment(origin: OriginFor<T>, route: Vec<u8>) 
 		-> DispatchResult {
-			ensure_signed(origin)?;
+			let who = ensure_signed(origin)?;
 
 			//Check if caller is the owner
 
-			//ensure!(TransitNodes::<T>::contains_key(&origin), Error::<T>::UnAuthorizedCaller);
+			ensure!(TransitNodes::<T>::contains_key(&who), Error::<T>::UnAuthorizedCaller);
 
 			// More checks needed ?
 
@@ -156,9 +175,9 @@
 		-> DispatchResult {
 			// This function will take a key parameter but we
 			// don't know what the type will be. I'm working on it
-			ensure_signed(origin)?;
+			let who = ensure_signed(origin)?;
 
-			//Check if caller is the owner
+			ensure!(TransitNodes::<T>::contains_key(&who), Error::<T>::UnAuthorizedCaller);
 
 			// Check if the shipment owner is the one who is calling the function. Transaction fails otherwise
 
