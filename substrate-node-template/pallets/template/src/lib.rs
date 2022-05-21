@@ -28,7 +28,7 @@
 		owner: T::AccountId,
 		pub fees: Option<BalanceOf<T>>,
 		pub status: ShipmentStatus,
-		pub route: BoundedVec<T::AccountId,T::MaxSize>,
+		pub route: BoundedVec<T::AccountId, T::MaxSize>,
 	  }
 
 	  // Shipment Status enum
@@ -81,6 +81,8 @@
 		  TransitPointNotFound,
 		  /// Not Authorized to Create Shipment
 		  UnAuthorizedCaller,
+
+		  NoOwner
 	  }
 
       // TODO: add #[pallet::storage] block
@@ -143,7 +145,7 @@
 		}
 
 		#[pallet::weight(0)]
-		pub fn create_shipment(origin: OriginFor<T>,route_vec: BoundedVec<T::AccountId,T::MaxSize>) 
+		pub fn create_shipment(origin: OriginFor<T>, route_vec: BoundedVec<T::AccountId, T::MaxSize>) 
 		-> DispatchResult {
 			let who = ensure_signed(origin)?;
 
@@ -157,9 +159,15 @@
 			let ncountp1 = ncount.checked_add(1).ok_or(ArithmeticError::Overflow)?;
 
 			let index = 1;
-			let next_owner = route_vec.get(index);
+			let next_owner = route_vec.get(index).expect("There should be next owner!").clone();
 
-			let shipment = Shipment::<T> {creator: who, owner: next_owner, fees: None, status: ShipmentStatus::InTransit,route: route_vec};
+			let shipment = Shipment::<T> {
+				creator: who, 
+				owner: next_owner, 
+				fees: None, 
+				status: ShipmentStatus::InTransit,
+				route: route_vec
+			};
 
 			// Set caller as the creator
 
