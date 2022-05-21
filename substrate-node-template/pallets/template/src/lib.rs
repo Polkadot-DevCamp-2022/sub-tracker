@@ -4,121 +4,120 @@
 
   #[frame_support::pallet]
   pub mod pallet {
-      use frame_support::{
-		  pallet_prelude::*,
-		  traits::{Currency, Randomness},
-	  };
-      use frame_system::pallet_prelude::*;
-	  use scale_info::TypeInfo;
-	  use sp_io::hashing::blake2_128;
-	  use sp_runtime::ArithmeticError;
 
-	  #[cfg(feature = "std")]
-	  use frame_support::serde::{Deserialize, Serialize};
+	use frame_support::{
+		pallet_prelude::*,
+		traits::{Currency, Randomness},
+	};
+	use frame_system::pallet_prelude::*;
+	use scale_info::TypeInfo;
+	use sp_io::hashing::blake2_128;
+	use sp_runtime::ArithmeticError;
 
-	  type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-	  //type AccountIdOf<T> = <T as system::Trait>::AccountId;
+	#[cfg(feature = "std")]
+	use frame_support::serde::{Deserialize, Serialize};
 
-	  //Shipment Struct
+	type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
-	  #[derive(Clone, Encode, Decode, PartialEq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
-	  #[scale_info(skip_type_params(T))]
-	  pub struct Shipment<T: Config> {
+	//Shipment Struct
+
+	#[derive(Clone, Encode, Decode, PartialEq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
+	#[scale_info(skip_type_params(T))]
+	pub struct Shipment<T: Config> {
 		pub creator: T::AccountId,
 		owner: T::AccountId,
 		pub fees: Option<BalanceOf<T>>,
 		pub status: ShipmentStatus,
 		pub route: BoundedVec<T::AccountId, T::MaxSize>,
-	  }
+	}
 
-	  // Shipment Status enum
-	  #[derive(Clone, Encode, Decode, PartialEq, Copy, RuntimeDebug, TypeInfo, MaxEncodedLen)]
-	  #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-	  pub enum ShipmentStatus {
-		  InTransit,
-		  Delivered,
-		  Failed,
-		  Unavailable,
-	  }
+	// Shipment Status enum
+	#[derive(Clone, Encode, Decode, PartialEq, Copy, RuntimeDebug, TypeInfo, MaxEncodedLen)]
+	#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+	pub enum ShipmentStatus {
+		InTransit,
+		Delivered,
+		Failed,
+		Unavailable,
+	}
 
-      // The struct on which we build all of our Pallet logic.
-      #[pallet::pallet]
-      #[pallet::generate_store(pub(super) trait Store)]
-      pub struct Pallet<T>(_);
+	// The struct on which we build all of our Pallet logic.
+	#[pallet::pallet]
+	#[pallet::generate_store(pub(super) trait Store)]
+	pub struct Pallet<T>(_);
 
-      /* Placeholder for defining custom types. */
+    /* Placeholder for defining custom types. */
 
-      // TODO: Update the `config` block below
-      #[pallet::config]
-      pub trait Config: frame_system::Config {
-          type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
-		  type Currency: Currency<Self::AccountId>;
-		  type MaxSize: Get<u32>;
-      }
+	// TODO: Update the `config` block below
+	#[pallet::config]
+	pub trait Config: frame_system::Config {
+		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type Currency: Currency<Self::AccountId>;
+		type KeyRandomNess: Randomness<Self::Hash, Self::BlockNumber>;
+		type MaxSize: Get<u32>;
+	}
 
-      // TODO: Update the `event` block below
-      #[pallet::event]
-      #[pallet::generate_deposit(pub(super) fn deposit_event)]
-      pub enum Event<T: Config> {
-		  /// Event emitted when a new Transit Point is created
-		  TransitPointCreated(T::AccountId),
-		  /// Event emitted when a Transit Point is removed
-		  TransitPointRemoved(T::AccountId),
-		  /// Event emitted when a new shipment is created
-		  ShipmentInit(T::AccountId),
-		  /// Event emitted when shipment keys and owners are updated
-		  ShipmentUpdated(T::AccountId),
-		  /// Event emitted when shipment is received at the destination
-		  ShipmentReceived(T::AccountId),
-	  }
+	// TODO: Update the `event` block below
+	#[pallet::event]
+	#[pallet::generate_deposit(pub(super) fn deposit_event)]
+	pub enum Event<T: Config> {
+		/// Event emitted when a new Transit Point is created
+		TransitPointCreated(T::AccountId),
+		/// Event emitted when a Transit Point is removed
+		TransitPointRemoved(T::AccountId),
+		/// Event emitted when a new shipment is created
+		ShipmentInit(T::AccountId),
+		/// Event emitted when shipment keys and owners are updated
+		ShipmentUpdated(T::AccountId),
+		/// Event emitted when shipment is received at the destination
+		ShipmentReceived(T::AccountId),
+	}
 
-      // TODO: Update the `error` block below
-      #[pallet::error]
-      pub enum Error<T> {
-		  /// Transit Point already exists
-		  TransitPointExists,
-		  /// Transit Point does not exist
-		  TransitPointNotFound,
-		  /// Not Authorized to Create Shipment
-		  UnAuthorizedCaller,
+	// TODO: Update the `error` block below
+	#[pallet::error]
+	pub enum Error<T> {
+		/// Transit Point already exists
+		TransitPointExists,
+		/// Transit Point does not exist
+		TransitPointNotFound,
+		/// Not Authorized to Create Shipment
+		UnAuthorizedCaller,
 
-		  NoOwner
-	  }
+		NoOwner
+	}
 
-      // TODO: add #[pallet::storage] block
+	// TODO: add #[pallet::storage] block
+	#[pallet::storage]
+	pub(super) type TransitNodes<T:Config> = StorageMap<
+		_,
+		Blake2_128Concat,
+		T::AccountId,
+		u8,
+		OptionQuery,
+	>;
 
-	  #[pallet::storage]
-	  pub(super) type TransitNodes<T:Config>=StorageMap<
-	      _,
-		  Blake2_128Concat,
-		  T::AccountId,
-		  u8,
-		  OptionQuery,
-	  >;
+	#[pallet::storage]
+	pub(super) type NodeUID<T:Config> = StorageValue<
+		_,
+		u8,
+		ValueQuery,
+	>;
 
-	  #[pallet::storage]
-	  pub(super) type NodeUID<T:Config>=StorageValue<
-	      _,
-		  u8,
-		  ValueQuery,
-	  >;
-
-	  #[pallet::storage]
-	  pub(super) type ShipmentUID<T:Config>=StorageValue<
-	      _,
-		  u64,
-		  ValueQuery,
-	  >;
+	#[pallet::storage]
+	pub(super) type ShipmentUID<T:Config> = StorageValue<
+		_,
+		u64,
+		ValueQuery,
+	>;
 
       // TODO: Update the `call` block below
-      #[pallet::call]
-      impl<T: Config> Pallet<T> {
+    #[pallet::call]
+    impl<T: Config> Pallet<T> {
 
 		#[pallet::weight(0)]
-		pub fn create_new_transit_node(origin: OriginFor<T>, transit_node: T::AccountId)
-		-> DispatchResult {
+		pub fn create_new_transit_node(origin: OriginFor<T>, transit_node: T::AccountId) -> DispatchResult {
+			
 			ensure_root(origin)?;
-
 			ensure!(!TransitNodes::<T>::contains_key(&transit_node), Error::<T>::TransitPointNotFound);
 
 			let ncount = NodeUID::<T>::get();
@@ -132,10 +131,9 @@
 		}
 
 		#[pallet::weight(0)]
-		pub fn remove_transit_node(origin: OriginFor<T>, transit_node: T::AccountId)
-		-> DispatchResult {
+		pub fn remove_transit_node(origin: OriginFor<T>, transit_node: T::AccountId) -> DispatchResult {
+			
 			ensure_root(origin)?;
-
 			ensure!(TransitNodes::<T>::contains_key(&transit_node), Error::<T>::TransitPointExists);
 
 			TransitNodes::<T>::remove(&transit_node);
@@ -145,8 +143,7 @@
 		}
 
 		#[pallet::weight(0)]
-		pub fn create_shipment(origin: OriginFor<T>, route_vec: BoundedVec<T::AccountId, T::MaxSize>) 
-		-> DispatchResult {
+		pub fn create_shipment(origin: OriginFor<T>, route_vec: BoundedVec<T::AccountId, T::MaxSize>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 
 			ensure!(TransitNodes::<T>::contains_key(&who), Error::<T>::UnAuthorizedCaller);
@@ -185,8 +182,7 @@
 		}
 
 		#[pallet::weight(0)]
-		pub fn update_shipment(origin: OriginFor<T>,uid: u64 )
-		-> DispatchResult {
+		pub fn update_shipment(origin: OriginFor<T>, uid: u64 ) -> DispatchResult {
 			// This function will take a key parameter but we
 			// don't know what the type will be. I'm working on it
 			let who = ensure_signed(origin)?;
@@ -203,18 +199,26 @@
 
 			Ok(())
 		}
-
-		// More functions
-
-		// Fees
-
-		// Routing
-		
-		// Key generation functions
-
-		// Getter functions for the transit nodes
-
-		// Getter functions for the customers
 	}
 
+	// Helpful functions
+	impl<T: Config> Pallet<T> {
+		
+		fn gen_key(&self) -> [u8; 16] {
+			let payload = (
+				T::KeyRandomNess::random(&b"key"[..]).0,
+				<frame_system::Pallet<T>>::extrinsic_index().unwrap_or_default(),
+				<frame_system::Pallet<T>>::block_number(),
+			);
+			payload.using_encoded(blake2_128)
+		}
+
+		fn set_fees(&self) {}
+
+		fn route(&mut self) {}
+
+		fn get_transit_nodes() {}
+
+		fn get_transit_status() {}
+	}
   }
