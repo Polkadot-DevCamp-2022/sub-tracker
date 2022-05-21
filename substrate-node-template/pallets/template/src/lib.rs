@@ -1,102 +1,187 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-/// Edit this file to define custom logic or remove it if it is not needed.
-/// Learn more about FRAME and the core library of Substrate FRAME pallets:
-/// <https://docs.substrate.io/v3/runtime/frame>
-pub use pallet::*;
+  pub use pallet::*;
 
-#[cfg(test)]
-mod mock;
+  #[frame_support::pallet]
+  pub mod pallet {
+      use frame_support::{
+		  pallet_prelude::*,
+		  traits::{Currency, Randomness},
+		  inherent::Vec,
+	  };
+      use frame_system::pallet_prelude::*;
+	  use scale_info::TypeInfo;
+	  use sp_io::hashing::blake2_128;
 
-#[cfg(test)]
-mod tests;
+	  #[cfg(feature = "std")]
+	  use frame_support::serde::{Deserialize, Serialize};
 
-#[cfg(feature = "runtime-benchmarks")]
-mod benchmarking;
+	  type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+	  //type AccountIdOf<T> = <T as system::Trait>::AccountId;
 
-#[frame_support::pallet]
-pub mod pallet {
-	use frame_support::pallet_prelude::*;
-	use frame_system::pallet_prelude::*;
+	  //Shipment Struct
 
-	/// Configure the pallet by specifying the parameters and types on which it depends.
-	#[pallet::config]
-	pub trait Config: frame_system::Config {
-		/// Because this pallet emits events, it depends on the runtime's definition of an event.
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
-	}
+	  #[derive(Clone, Encode, Decode, PartialEq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
+	  #[scale_info(skip_type_params(T))]
+	  pub struct Shipment<T: Config> {
+		pub uid: u64,
+		pub creator: T::AccountId,
+		owner: T::AccountId,
+		pub fees: Option<BalanceOf<T>>,
+		pub status: ShipmentStatus,
+	  }
 
-	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
-	pub struct Pallet<T>(_);
+	  // Shipment Status enum
+	  #[derive(Clone, Encode, Decode, PartialEq, Copy, RuntimeDebug, TypeInfo, MaxEncodedLen)]
+	  #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+	  pub enum ShipmentStatus {
+		  InTransit,
+		  Delivered,
+		  Failed,
+		  Unavailable,
+	  }
 
-	// The pallet's runtime storage items.
-	// https://docs.substrate.io/v3/runtime/storage
-	#[pallet::storage]
-	#[pallet::getter(fn something)]
-	// Learn more about declaring storage items:
-	// https://docs.substrate.io/v3/runtime/storage#declaring-storage-items
-	pub type Something<T> = StorageValue<_, u32>;
+      // The struct on which we build all of our Pallet logic.
+      #[pallet::pallet]
+      #[pallet::generate_store(pub(super) trait Store)]
+      pub struct Pallet<T>(_);
 
-	// Pallets use events to inform users when important changes are made.
-	// https://docs.substrate.io/v3/runtime/events-and-errors
-	#[pallet::event]
-	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	pub enum Event<T: Config> {
-		/// Event documentation should end with an array that provides descriptive names for event
-		/// parameters. [something, who]
-		SomethingStored(u32, T::AccountId),
-	}
+      /* Placeholder for defining custom types. */
 
-	// Errors inform users that something went wrong.
-	#[pallet::error]
-	pub enum Error<T> {
-		/// Error names should be descriptive.
-		NoneValue,
-		/// Errors should have helpful documentation associated with them.
-		StorageOverflow,
-	}
+      // TODO: Update the `config` block below
+      #[pallet::config]
+      pub trait Config: frame_system::Config {
+          type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		  type Currency: Currency<Self::AccountId>;
+      }
 
-	// Dispatchable functions allows users to interact with the pallet and invoke state changes.
-	// These functions materialize as "extrinsics", which are often compared to transactions.
-	// Dispatchable functions must be annotated with a weight and must return a DispatchResult.
-	#[pallet::call]
-	impl<T: Config> Pallet<T> {
-		/// An example dispatchable that takes a singles value as a parameter, writes the value to
-		/// storage and emits an event. This function must be dispatched by a signed extrinsic.
-		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
-		pub fn do_something(origin: OriginFor<T>, something: u32) -> DispatchResult {
-			// Check that the extrinsic was signed and get the signer.
-			// This function will return an error if the extrinsic is not signed.
-			// https://docs.substrate.io/v3/runtime/origins
-			let who = ensure_signed(origin)?;
+      // TODO: Update the `event` block below
+      #[pallet::event]
+      #[pallet::generate_deposit(pub(super) fn deposit_event)]
+      pub enum Event<T: Config> {
+		  /// Event emitted when a new Transit Point is created
+		  TransitPointCreated(T::AccountId),
+		  /// Event emitted when a Transit Point is removed
+		  TransitPointRemoved(T::AccountId),
+		  /// Event emitted when a new shipment is created
+		  ShipmentInit(T::AccountId),
+		  /// Event emitted when shipment keys and owners are updated
+		  ShipmentUpdated(T::AccountId),
+		  /// Event emitted when shipment is received at the destination
+		  ShipmentReceived(T::AccountId),
+	  }
 
-			// Update storage.
-			<Something<T>>::put(something);
+      // TODO: Update the `error` block below
+      #[pallet::error]
+      pub enum Error<T> {
+		  /// Transit Point already exists
+		  TransitPointExists,
+		  /// Transit Point does not exist
+		  TransitPointNotFound,
+		  /// Not Authorized to Create Shipment
+		  UnAuthorizedCaller,
+	  }
 
-			// Emit an event.
-			Self::deposit_event(Event::SomethingStored(something, who));
-			// Return a successful DispatchResultWithPostInfo
+      // TODO: add #[pallet::storage] block
+
+	  #[pallet::storage]
+	  pub(super) type TransitNodes<T:Config>=StorageMap<
+	      _,
+		  Blake2_128Concat,
+		  T::AccountId,
+		  u16,
+		  OptionQuery,
+	  >;
+
+      // TODO: Update the `call` block below
+      #[pallet::call]
+      impl<T: Config> Pallet<T> {
+
+		#[pallet::weight(0)]
+		pub fn create_new_transit_node(origin: OriginFor<T>, transit_node: T::AccountId)
+		-> DispatchResult {
+			ensure_root(origin)?;
+
+			ensure!(!TransitNodes::<T>::contains_key(&transit_node), Error::<T>::TransitPointNotFound);
+
+			TransitNodes::<T>::insert(&transit_node,0);
+
+			Self::deposit_event(Event::TransitPointCreated(transit_node));
 			Ok(())
 		}
 
-		/// An example dispatchable that may throw a custom error.
-		#[pallet::weight(10_000 + T::DbWeight::get().reads_writes(1,1))]
-		pub fn cause_error(origin: OriginFor<T>) -> DispatchResult {
-			let _who = ensure_signed(origin)?;
+		#[pallet::weight(0)]
+		pub fn remove_transit_node(origin: OriginFor<T>, transit_node: T::AccountId)
+		-> DispatchResult {
+			ensure_root(origin)?;
 
-			// Read a value from storage.
-			match <Something<T>>::get() {
-				// Return an error if the value has not been set.
-				None => Err(Error::<T>::NoneValue)?,
-				Some(old) => {
-					// Increment the value read from storage; will error in the event of overflow.
-					let new = old.checked_add(1).ok_or(Error::<T>::StorageOverflow)?;
-					// Update the value in storage with the incremented result.
-					<Something<T>>::put(new);
-					Ok(())
-				},
-			}
+			ensure!(TransitNodes::<T>::contains_key(&transit_node), Error::<T>::TransitPointExists);
+
+			TransitNodes::<T>::remove(&transit_node);
+
+			Self::deposit_event(Event::TransitPointRemoved(transit_node));
+			Ok(())
 		}
+
+		#[pallet::weight(0)]
+		pub fn create_shipment(origin: OriginFor<T>, route: Vec<u8>) 
+		-> DispatchResult {
+			ensure_signed(origin)?;
+
+			//Check if caller is the owner
+
+			//ensure!(TransitNodes::<T>::contains_key(&origin), Error::<T>::UnAuthorizedCaller);
+
+			// More checks needed ?
+
+			// Set uid
+
+			// Set caller as the creator
+
+			// Set the route
+
+			// Calculate Shipment fees based on the route
+
+			// Create the shipment
+
+			//create Restricted Key => Create a type first so the shipment uid maps to the type (TO-DO)
+
+			//Set next Transit Node as the owner
+
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn update_shipment(origin: OriginFor<T>,uid: u64 )
+		-> DispatchResult {
+			// This function will take a key parameter but we
+			// don't know what the type will be. I'm working on it
+			ensure_signed(origin)?;
+
+			//Check if caller is the owner
+
+			// Check if the shipment owner is the one who is calling the function. Transaction fails otherwise
+
+			// Match the input key with the one stored on the blockchain (Not implemented yet. see the first comment in this function)
+
+			// Check if the current transit node is the destination. If it is,  change the status of the shipment.
+
+			// Otherwise , generate a new key and a new owner
+
+			Ok(())
+		}
+
+		// More functions
+
+		// Fees
+
+		// Routing
+		
+		// Key generation functions
+
+		// Getter functions for the transit nodes
+
+		// Getter functions for the customers
 	}
-}
+
+  }
