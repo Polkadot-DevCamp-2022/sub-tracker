@@ -66,9 +66,9 @@
 
 	#[pallet::error]
 	pub enum Error<T> {
-		InvalidKey,
+		InvalidUID,
 		InvalidRoute,
-		KeyNotFound,
+		UIDNotFound,
 		ShipmentAlreadyExists,
 		ShipmentKeyAlreadyExists,
 		ShipmentNotFound,
@@ -89,8 +89,8 @@
 	pub(super) type UidToKey<T:Config> = StorageMap<
 		_,
 		Blake2_128Concat,
-		[u8; 16],
 		u64,
+		[u8; 16],
 		OptionQuery,
 	>;
 
@@ -175,7 +175,7 @@
 			UidToShipment::<T>::insert(&new_uid, &shipment);
 
 			let key = Self::gen_key(); // Todo: How will next destination know/get this key value?
-			ShipmentsKeyMap::<T>::insert(&key, &new_uid);
+			UidToKey::<T>::insert(&new_uid, &key);
 
 			Self::deposit_event(Event::ShipmentCreated(transit_node));
 			Ok(())
@@ -186,13 +186,13 @@
 
 			let transit_node = ensure_signed(origin)?;
 			ensure!(TransitNodeToUid::<T>::contains_key(&transit_node), Error::<T>::UnauthorizedCaller);
-			ensure!(ShipmentsKeyMap::<T>::contains_key(&key), Error::<T>::KeyNotFound);
-			ensure!(ShipmentsKeyMap::<T>::get(&key).unwrap() == uid, Error::<T>::InvalidKey);
+			ensure!(UidToKey::<T>::contains_key(&uid), Error::<T>::UIDNotFound);
+			ensure!(UidToKey::<T>::get(&uid).unwrap() == key, Error::<T>::InvalidUID);
 			ensure!(UidToShipment::<T>::contains_key(uid), Error::<T>::ShipmentNotFound);
 
 			let mut shipment = UidToShipment::<T>::get(uid).unwrap();
 			ensure!(&transit_node == shipment.route.get(shipment.owner_index as usize).unwrap(), Error::<T>::UnauthorizedCaller);
-			ShipmentsKeyMap::<T>::remove(&key);
+			UidToKey::<T>::remove(&uid);
 
 			match shipment.owner_index == shipment.route.len() as u8 - 1 {
 				true => {
@@ -204,7 +204,7 @@
 					// Shipment is still in transit
 					shipment.owner_index = shipment.owner_index + 1;
 					let new_key = Self::gen_key(); // Todo: How will next destination know/get this key value?
-					ShipmentsKeyMap::<T>::insert(&new_key, &uid);
+					UidToKey::<T>::insert(&uid, &new_key);
 					Self::deposit_event(Event::ShipmentUpdated(transit_node));
 				}
 			}
