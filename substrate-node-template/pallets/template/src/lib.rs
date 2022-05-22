@@ -104,7 +104,7 @@
 	>;
 
 	#[pallet::storage]
-	pub(super) type ShipmentUID<T:Config> = StorageValue<
+	pub(super) type ShipmentCount<T:Config> = StorageValue<
 		_,
 		u64,
 		ValueQuery,
@@ -160,7 +160,7 @@
 			ensure!(TransitNodeToUid::<T>::contains_key(&transit_node), Error::<T>::UnauthorizedCaller); // check if this is called by Transit Node
 			ensure!(route_vec.len() > 1, Error::<T>::InvalidRoute);
 
-			let uid = ShipmentUID::<T>::get();
+			let uid = ShipmentCount::<T>::get();
 			let new_uid = uid.checked_add(1).ok_or(ArithmeticError::Overflow)?;
 
 			let shipment = Shipment::<T> {
@@ -176,6 +176,8 @@
 
 			let key = Self::gen_key(); // Todo: How will next destination know/get this key value?
 			UidToKey::<T>::insert(&new_uid, &key);
+
+			ShipmentCount::<T>::put(new_uid);
 
 			Self::deposit_event(Event::ShipmentCreated(transit_node));
 			Ok(())
