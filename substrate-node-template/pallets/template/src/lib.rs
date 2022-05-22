@@ -84,9 +84,9 @@
 		ValueQuery,
 	>;
 
-	// key -> shipment_uid map
+	// uid -> key
 	#[pallet::storage]
-	pub(super) type ShipmentsKeyMap<T:Config> = StorageMap<
+	pub(super) type UidToKey<T:Config> = StorageMap<
 		_,
 		Blake2_128Concat,
 		[u8; 16],
@@ -96,7 +96,7 @@
 
 	// shipment_uid -> shipment map
 	#[pallet::storage]
-	pub(super) type Shipments<T:Config> = StorageMap<
+	pub(super) type UidToShipment<T:Config> = StorageMap<
 		_,
 		Blake2_128Concat,
 		u64,
@@ -112,7 +112,7 @@
 
 	// transit_node -> node_uid map
 	#[pallet::storage]
-	pub(super) type TransitNodes<T:Config> = StorageMap<
+	pub(super) type TransitNodeToUid<T:Config> = StorageMap<
 		_,
 		Blake2_128Concat,
 		T::AccountId,
@@ -127,15 +127,16 @@
 		pub fn create_new_transit_node(origin: OriginFor<T>, transit_node: T::AccountId) -> DispatchResult {
 
 			ensure_root(origin)?;
-			ensure!(!TransitNodes::<T>::contains_key(&transit_node), Error::<T>::TransitPointAlreadyExists);
+			ensure!(!TransitNodeToUid::<T>::contains_key(&transit_node), Error::<T>::TransitPointAlreadyExists);
 
 			let uid = NodeUID::<T>::get();
 			let new_uid = uid.checked_add(1).ok_or(ArithmeticError::Overflow)?;
 
-			TransitNodes::<T>::insert(&transit_node, &new_uid);
+			TransitNodeToUid::<T>::insert(&transit_node, &new_uid);
 			NodeUID::<T>::put(new_uid);
 
 			Self::deposit_event(Event::TransitPointCreated(transit_node));
+
 			Ok(())
 		}
 
@@ -143,11 +144,12 @@
 		pub fn remove_transit_node(origin: OriginFor<T>, transit_node: T::AccountId) -> DispatchResult {
 
 			ensure_root(origin)?;
-			ensure!(TransitNodes::<T>::contains_key(&transit_node), Error::<T>::TransitPointNotFound);
+			ensure!(TransitNodeToUid::<T>::contains_key(&transit_node), Error::<T>::TransitPointNotFound);
 
-			TransitNodes::<T>::remove(&transit_node);
+			TransitNodeToUid::<T>::remove(&transit_node);
 
 			Self::deposit_event(Event::TransitPointRemoved(transit_node));
+
 			Ok(())
 		}
 
@@ -155,7 +157,7 @@
 		pub fn create_shipment(origin: OriginFor<T>, route_vec: BoundedVec<T::AccountId, T::MaxSize>) -> DispatchResult {
 
 			let transit_node = ensure_signed(origin)?;
-			ensure!(TransitNodes::<T>::contains_key(&transit_node), Error::<T>::UnauthorizedCaller);
+			ensure!(TransitNodeToUid::<T>::contains_key(&transit_node), Error::<T>::UnauthorizedCaller); // check if this is called by Transit Node
 			ensure!(route_vec.len() > 1, Error::<T>::InvalidRoute);
 
 			let uid = ShipmentUID::<T>::get();
@@ -169,8 +171,8 @@
 				status: ShipmentStatus::InTransit
 			};
 
-			ensure!(!Shipments::<T>::contains_key(&new_uid), Error::<T>::ShipmentAlreadyExists);
-			Shipments::<T>::insert(&new_uid, &shipment);
+			ensure!(!UidToShipment::<T>::contains_key(&new_uid), Error::<T>::ShipmentAlreadyExists);
+			UidToShipment::<T>::insert(&new_uid, &shipment);
 
 			let key = Self::gen_key(); // Todo: How will next destination know/get this key value?
 			ShipmentsKeyMap::<T>::insert(&key, &new_uid);
@@ -183,12 +185,12 @@
 		pub fn update_shipment(origin: OriginFor<T>, uid: u64, key: [u8; 16]) -> DispatchResult {
 
 			let transit_node = ensure_signed(origin)?;
-			ensure!(TransitNodes::<T>::contains_key(&transit_node), Error::<T>::UnauthorizedCaller);
+			ensure!(TransitNodeToUid::<T>::contains_key(&transit_node), Error::<T>::UnauthorizedCaller);
 			ensure!(ShipmentsKeyMap::<T>::contains_key(&key), Error::<T>::KeyNotFound);
 			ensure!(ShipmentsKeyMap::<T>::get(&key).unwrap() == uid, Error::<T>::InvalidKey);
-			ensure!(Shipments::<T>::contains_key(uid), Error::<T>::ShipmentNotFound);
+			ensure!(UidToShipment::<T>::contains_key(uid), Error::<T>::ShipmentNotFound);
 
-			let mut shipment = Shipments::<T>::get(uid).unwrap();
+			let mut shipment = UidToShipment::<T>::get(uid).unwrap();
 			ensure!(&transit_node == shipment.route.get(shipment.owner_index as usize).unwrap(), Error::<T>::UnauthorizedCaller);
 			ShipmentsKeyMap::<T>::remove(&key);
 
