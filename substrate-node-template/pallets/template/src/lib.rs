@@ -75,17 +75,7 @@
 		TransitPointAlreadyExists,
 		TransitPointNotFound,
 		UnauthorizedCaller,
-		RouterVecOverFlow,
 	}
-
-	#[pallet::storage]
-	pub(super) type AdminToRouteVec<T: Config> = StorageMap<
-		_,
-		Twox64Concat,
-		T::AccountId,
-		BoundedVec<T::AccountId, T::MaxSize>,
-		ValueQuery,
-	>;
 
 	#[pallet::storage]
 	pub(super) type NodeUID<T:Config> = StorageValue<
@@ -164,12 +154,11 @@
 		}
 
 		#[pallet::weight(0)]
-		pub fn create_shipment(origin: OriginFor<T>) -> DispatchResult {
+		pub fn create_shipment(origin: OriginFor<T>, route_vec: BoundedVec<T::AccountId, T::MaxSize>) -> DispatchResult {
 
 			let transit_node = ensure_signed(origin)?;
-			// let route_vec = AdminToRouteVec::<T>::get(where admin will put)
 			ensure!(TransitNodeToUid::<T>::contains_key(&transit_node), Error::<T>::UnauthorizedCaller); // check if this is called by Transit Node
-			// ensure!(route_vec.len() > 1, Error::<T>::InvalidRoute);
+			ensure!(route_vec.len() > 1, Error::<T>::InvalidRoute);
 
 			let uid = ShipmentCount::<T>::get();
 			let new_uid = uid.checked_add(1).ok_or(ArithmeticError::Overflow)?;
@@ -178,7 +167,7 @@
 				creator: transit_node.clone(),
 				fees: None, // Todo: Calculate fees based on the route
 				owner_index: 1,
-				route: None, // where route_vec will be put
+				route: route_vec,
 				status: ShipmentStatus::InTransit
 			};
 
@@ -237,21 +226,9 @@
 			payload.using_encoded(blake2_128)
 		}
 
-		fn set_fees() {}
+		fn set_fees(&self) {}
 
-		fn gen_route_vec(
-			admin: &T::AccountId, 
-			transit_node: T::AccountId
-		) -> Result<(), Error::<T>> {
-
-			// only Admin can call this function 
-			
-			AdminToRouteVec::<T>::try_mutate(&admin, |route_vec| {
-				route_vec.try_push(transit_node)
-			}).map_err(|_| Error::<T>::RouterVecOverFlow)?;
-
-			Ok(())
-		}
+		fn route(&mut self) {}
 
 		fn get_transit_nodes() {}
 
