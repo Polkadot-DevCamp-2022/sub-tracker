@@ -173,7 +173,6 @@
 			Shipments::<T>::insert(&new_uid, &shipment);
 
 			let key = Self::gen_key(); // Todo: How will next destination know/get this key value?
-			ensure!(!ShipmentsKeyMap::<T>::contains_key(&key), Error::<T>::ShipmentKeyAlreadyExists); // Todo: Is this check necessary?
 			ShipmentsKeyMap::<T>::insert(&key, &new_uid);
 
 			Self::deposit_event(Event::ShipmentCreated(transit_node));
@@ -203,7 +202,6 @@
 					// Shipment is still in transit
 					shipment.owner_index = shipment.owner_index + 1;
 					let new_key = Self::gen_key(); // Todo: How will next destination know/get this key value?
-					ensure!(!ShipmentsKeyMap::<T>::contains_key(&new_key), Error::<T>::ShipmentKeyAlreadyExists); // Todo: Is this check necessary?
 					ShipmentsKeyMap::<T>::insert(&new_key, &uid);
 					Self::deposit_event(Event::ShipmentUpdated(transit_node));
 				}
