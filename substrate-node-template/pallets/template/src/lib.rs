@@ -68,12 +68,13 @@
 	pub enum Error<T> {
 		InvalidUID,
 		InvalidRoute,
-		UIDNotFound,
+		KeyNotFound,
 		ShipmentAlreadyExists,
 		ShipmentKeyAlreadyExists,
 		ShipmentNotFound,
 		TransitPointAlreadyExists,
 		TransitPointNotFound,
+		UIDNotFound,
 		UnauthorizedCaller,
 	}
 
@@ -84,9 +85,9 @@
 		ValueQuery,
 	>;
 
-	// uid -> key
+	// shipment_uid -> key map
 	#[pallet::storage]
-	pub(super) type UidToKey<T:Config> = StorageMap<
+	pub(super) type ShipmentUidToKey<T:Config> = StorageMap<
 		_,
 		Blake2_128Concat,
 		u64,
@@ -159,10 +160,10 @@
 			let transit_node = ensure_signed(origin)?;
 			ensure!(TransitNodeToUid::<T>::contains_key(&transit_node), Error::<T>::UnauthorizedCaller); // check if this is called by Transit Node
 			ensure!(route_vec.len() > 1, Error::<T>::InvalidRoute);
+			ensure!(route_vec.iter().all(|node| TransitNodeToUid::<T>::contains_key(&node)), Error::<T>::InvalidRoute);
 
-
-			let uid = ShipmentCount::<T>::get();
-			let new_uid = uid.checked_add(1).ok_or(ArithmeticError::Overflow)?;
+			let shipment_uid = ShipmentCount::<T>::get();
+			let new_shipment_uid = shipment_uid.checked_add(1).ok_or(ArithmeticError::Overflow)?;
 
 			let shipment = Shipment::<T> {
 				creator: transit_node.clone(),
@@ -172,33 +173,30 @@
 				status: ShipmentStatus::InTransit
 			};
 
-			ensure!(!UidToShipment::<T>::contains_key(&new_uid), Error::<T>::ShipmentAlreadyExists);
-			UidToShipment::<T>::insert(&new_uid, &shipment);
+			ensure!(!UidToShipment::<T>::contains_key(&new_shipment_uid), Error::<T>::ShipmentAlreadyExists);
+			UidToShipment::<T>::insert(&new_shipment_uid, &shipment);
 
-			let key = Self::gen_key(); // Todo: How will next destination know/get this key value?
-			UidToKey::<T>::insert(&new_uid, &key);
+			let key = Self::gen_key();
+			ShipmentUidToKey::<T>::insert(&new_shipment_uid, &key);
 
-			ShipmentCount::<T>::put(new_uid);
+			ShipmentCount::<T>::put(new_shipment_uid);
 
 			Self::deposit_event(Event::ShipmentCreated(transit_node));
 			Ok(())
 		}
 
 		#[pallet::weight(0)]
-		pub fn update_shipment(
-			origin: OriginFor<T>, 
-			uid: u64, key: [u8; 16]
-		) -> DispatchResult {
+		pub fn update_shipment(origin: OriginFor<T>, shipment_uid: u64, key: [u8; 16]) -> DispatchResult {
 
 			let transit_node = ensure_signed(origin)?;
 			ensure!(TransitNodeToUid::<T>::contains_key(&transit_node), Error::<T>::UnauthorizedCaller);
-			ensure!(UidToKey::<T>::contains_key(&uid), Error::<T>::UIDNotFound);
-			ensure!(UidToKey::<T>::get(&uid).unwrap() == key, Error::<T>::InvalidUID);
-			ensure!(UidToShipment::<T>::contains_key(uid), Error::<T>::ShipmentNotFound);
+			ensure!(ShipmentUidToKey::<T>::contains_key(&shipment_uid), Error::<T>::UIDNotFound);
+			ensure!(ShipmentUidToKey::<T>::get(&shipment_uid).unwrap() == key, Error::<T>::InvalidUID);
+			ensure!(UidToShipment::<T>::contains_key(shipment_uid), Error::<T>::ShipmentNotFound);
 
-			let mut shipment = UidToShipment::<T>::get(uid).unwrap();
+			let mut shipment = UidToShipment::<T>::get(shipment_uid).unwrap();
 			ensure!(&transit_node == shipment.route.get(shipment.owner_index as usize).unwrap(), Error::<T>::UnauthorizedCaller);
-			UidToKey::<T>::remove(&uid);
+			ShipmentUidToKey::<T>::remove(&shipment_uid);
 
 			match shipment.owner_index == shipment.route.len() as u8 - 1 {
 				true => {
@@ -209,8 +207,8 @@
 				false => {
 					// Shipment is still in transit
 					shipment.owner_index = shipment.owner_index + 1;
-					let new_key = Self::gen_key(); // Todo: How will next destination know/get this key value?
-					UidToKey::<T>::insert(&uid, &new_key);
+					let new_key = Self::gen_key();
+					ShipmentUidToKey::<T>::insert(&shipment_uid, &new_key);
 					Self::deposit_event(Event::ShipmentUpdated(transit_node));
 				}
 			}
@@ -229,7 +227,7 @@
 			);
 			payload.using_encoded(blake2_128)
 		}
-		
+
 		fn set_fees() {}
 
 		fn route() {}
@@ -237,5 +235,16 @@
 		fn get_transit_nodes() {}
 
 		fn get_transit_status() {}
+
+		fn get_key(origin: OriginFor<T>, shipment_uid: u64) -> Result<[u8; 16], Error<T>> {
+			let transit_node = match ensure_signed(origin) {
+				Ok(val) => val,
+				Err(_) => return Err(Error::<T>::UnauthorizedCaller)
+			};
+			ensure!(TransitNodeToUid::<T>::contains_key(&transit_node), Error::<T>::UnauthorizedCaller);
+			ensure!(ShipmentUidToKey::<T>::contains_key(&shipment_uid), Error::<T>::UIDNotFound);
+
+			return ShipmentUidToKey::<T>::get(&shipment_uid).ok_or(Error::<T>::KeyNotFound);
+		}
 	}
   }
