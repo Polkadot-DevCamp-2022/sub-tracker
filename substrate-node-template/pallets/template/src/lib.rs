@@ -202,6 +202,7 @@
 				true => {
 					// Shipment has reached end destination
 					shipment.status = ShipmentStatus::Delivered;
+					UidToShipment::<T>::insert(&shipment_uid, &shipment);
 					Self::deposit_event(Event::ShipmentReceived(transit_node));
 				},
 				false => {
@@ -209,6 +210,7 @@
 					shipment.owner_index = shipment.owner_index + 1;
 					let new_key = Self::gen_key();
 					ShipmentUidToKey::<T>::insert(&shipment_uid, &new_key);
+					UidToShipment::<T>::insert(&shipment_uid, &shipment);
 					Self::deposit_event(Event::ShipmentUpdated(transit_node));
 				}
 			}
