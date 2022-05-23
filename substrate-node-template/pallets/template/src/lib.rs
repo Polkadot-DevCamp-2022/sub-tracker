@@ -13,6 +13,7 @@
 	use scale_info::TypeInfo;
 	use sp_io::hashing::blake2_128;
 	use sp_runtime::ArithmeticError;
+	use sp_std::vec::Vec;
 
 	#[cfg(feature = "std")]
 	use frame_support::serde::{Deserialize, Serialize};
@@ -67,19 +68,24 @@
 	#[pallet::error]
 	pub enum Error<T> {
 		InvalidUID,
+		InvalidShipmentUID,
 		InvalidRoute,
+		InvalidKey,
 		KeyNotFound,
 		ShipmentAlreadyExists,
 		ShipmentKeyAlreadyExists,
 		ShipmentNotFound,
 		TransitPointAlreadyExists,
+		TransitNodesOverFlow,
 		TransitPointNotFound,
 		UIDNotFound,
 		UnauthorizedCaller,
+		CallerIsNotFirstNode
 	}
 
 	#[pallet::storage]
-	pub(super) type NodeUID<T:Config> = StorageValue<
+	#[pallet::getter(fn count_for_transit_point)]
+	pub(super) type CountForTransitPoints<T:Config> = StorageValue<
 		_,
 		u8,
 		ValueQuery,
@@ -87,6 +93,7 @@
 
 	// shipment_uid -> key map
 	#[pallet::storage]
+	#[pallet::getter(fn shipment_uid_to_key)]
 	pub(super) type ShipmentUidToKey<T:Config> = StorageMap<
 		_,
 		Blake2_128Concat,
@@ -97,14 +104,17 @@
 
 	// shipment_uid -> shipment map
 	#[pallet::storage]
+	#[pallet::getter(fn uid_to_shipment)]
 	pub(super) type UidToShipment<T:Config> = StorageMap<
 		_,
 		Blake2_128Concat,
 		u64,
 		Shipment<T>,
+		OptionQuery,
 	>;
 
 	#[pallet::storage]
+	#[pallet::getter(fn count_for_shipment)]
 	pub(super) type ShipmentCount<T:Config> = StorageValue<
 		_,
 		u64,
@@ -113,12 +123,11 @@
 
 	// transit_node -> node_uid map
 	#[pallet::storage]
-	pub(super) type TransitNodeToUid<T:Config> = StorageMap<
+	#[pallet::getter(fn transit_nodes)]
+	pub(super) type TransitNodes<T:Config> = StorageValue<
 		_,
-		Blake2_128Concat,
-		T::AccountId,
-		u8,
-		OptionQuery,
+		Vec<T::AccountId>,
+		ValueQuery,
 	>;
 
     #[pallet::call]
@@ -128,13 +137,13 @@
 		pub fn create_new_transit_node(origin: OriginFor<T>, transit_node: T::AccountId) -> DispatchResult {
 
 			ensure_root(origin)?;
-			ensure!(!TransitNodeToUid::<T>::contains_key(&transit_node), Error::<T>::TransitPointAlreadyExists);
+			ensure!(!Self::transit_nodes().contains(&transit_node), Error::<T>::TransitPointAlreadyExists);
 
-			let uid = NodeUID::<T>::get();
-			let new_uid = uid.checked_add(1).ok_or(ArithmeticError::Overflow)?;
-
-			TransitNodeToUid::<T>::insert(&transit_node, &new_uid);
-			NodeUID::<T>::put(new_uid);
+			let transit_point_counts = Self::count_for_transit_point().checked_add(1).ok_or(ArithmeticError::Overflow)?;
+			let mut new_transit_nodes = Self::transit_nodes();
+			new_transit_nodes.push(transit_node.clone());
+			CountForTransitPoints::<T>::put(transit_point_counts);
+			TransitNodes::<T>::put(new_transit_nodes);
 
 			Self::deposit_event(Event::TransitPointCreated(transit_node));
 
@@ -145,9 +154,14 @@
 		pub fn remove_transit_node(origin: OriginFor<T>, transit_node: T::AccountId) -> DispatchResult {
 
 			ensure_root(origin)?;
-			ensure!(TransitNodeToUid::<T>::contains_key(&transit_node), Error::<T>::TransitPointNotFound);
+			ensure!(Self::transit_nodes().contains(&transit_node), Error::<T>::TransitPointNotFound);
 
-			TransitNodeToUid::<T>::remove(&transit_node);
+			let transit_point_counts = Self::count_for_transit_point().checked_sub(1).ok_or(ArithmeticError::Underflow)?;
+			let mut new_transit_nodes = Self::transit_nodes();
+			new_transit_nodes.retain(|nodes| *nodes == transit_node);
+
+			CountForTransitPoints::<T>::put(transit_point_counts);
+			TransitNodes::<T>::put(new_transit_nodes);
 
 			Self::deposit_event(Event::TransitPointRemoved(transit_node));
 
@@ -158,9 +172,9 @@
 		pub fn create_shipment(origin: OriginFor<T>, route_vec: BoundedVec<T::AccountId, T::MaxSize>) -> DispatchResult {
 
 			let transit_node = ensure_signed(origin)?;
-			ensure!(TransitNodeToUid::<T>::contains_key(&transit_node), Error::<T>::UnauthorizedCaller); // check if this is called by Transit Node
+			ensure!(route_vec[0] == transit_node, Error::<T>::CallerIsNotFirstNode);
 			ensure!(route_vec.len() > 1, Error::<T>::InvalidRoute);
-			ensure!(route_vec.iter().all(|node| TransitNodeToUid::<T>::contains_key(&node)), Error::<T>::InvalidRoute);
+			ensure!(route_vec.iter().all(|node| Self::transit_nodes().contains(&node)), Error::<T>::InvalidRoute);
 
 			let shipment_uid = ShipmentCount::<T>::get();
 			let new_shipment_uid = shipment_uid.checked_add(1).ok_or(ArithmeticError::Overflow)?;
@@ -189,12 +203,11 @@
 		pub fn update_shipment(origin: OriginFor<T>, shipment_uid: u64, key: [u8; 16]) -> DispatchResult {
 
 			let transit_node = ensure_signed(origin)?;
-			ensure!(TransitNodeToUid::<T>::contains_key(&transit_node), Error::<T>::UnauthorizedCaller);
 			ensure!(ShipmentUidToKey::<T>::contains_key(&shipment_uid), Error::<T>::UIDNotFound);
-			ensure!(ShipmentUidToKey::<T>::get(&shipment_uid).unwrap() == key, Error::<T>::InvalidUID);
+			ensure!(Self::shipment_uid_to_key(&shipment_uid).unwrap() == key, Error::<T>::InvalidKey);
 			ensure!(UidToShipment::<T>::contains_key(shipment_uid), Error::<T>::ShipmentNotFound);
 
-			let mut shipment = UidToShipment::<T>::get(shipment_uid).unwrap();
+			let mut shipment = Self::uid_to_shipment(shipment_uid).ok_or(Error::<T>::ShipmentNotFound)?;
 			ensure!(&transit_node == shipment.route.get(shipment.owner_index as usize).unwrap(), Error::<T>::UnauthorizedCaller);
 			ShipmentUidToKey::<T>::remove(&shipment_uid);
 
@@ -230,26 +243,26 @@
 			payload.using_encoded(blake2_128)
 		}
 
-		fn set_fees() {}
+		// fn set_fees() {}
 
-		fn route() {}
+		// fn route() {}
 
-		fn get_transit_nodes() {}
+		// fn get_transit_nodes() {}
 
-		fn get_transit_status() {}
+		// fn get_transit_status() {}
 
 		// I think we should be looking to develop an encode decode algorithm. Public key is encoded but only the decoded private key
 		// can be used to call the update function.
 
-		fn get_key(origin: OriginFor<T>, shipment_uid: u64) -> Result<[u8; 16], Error<T>> {
-			let transit_node = match ensure_signed(origin) {
-				Ok(val) => val,
-				Err(_) => return Err(Error::<T>::UnauthorizedCaller)
-			};
-			ensure!(TransitNodeToUid::<T>::contains_key(&transit_node), Error::<T>::UnauthorizedCaller);
-			ensure!(ShipmentUidToKey::<T>::contains_key(&shipment_uid), Error::<T>::UIDNotFound);
+		// fn get_key(origin: OriginFor<T>, shipment_uid: u64) -> Result<[u8; 16], Error<T>> {
+		// 	let transit_node = match ensure_signed(origin) {
+		// 		Ok(val) => val,
+		// 		Err(_) => return Err(Error::<T>::UnauthorizedCaller)
+		// 	};
+		// 	ensure!(Self::transit_nodes().contains(&transit_node), Error::<T>::UnauthorizedCaller);
+		// 	ensure!(ShipmentUidToKey::<T>::contains_key(&shipment_uid), Error::<T>::UIDNotFound);
 
-			return ShipmentUidToKey::<T>::get(&shipment_uid).ok_or(Error::<T>::KeyNotFound);
-		}
+		// 	return ShipmentUidToKey::<T>::get(&shipment_uid).ok_or(Error::<T>::KeyNotFound);
+		// }
 	}
   }
