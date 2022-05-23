@@ -236,6 +236,9 @@
 
 		fn get_transit_status() {}
 
+		// I think we should be looking to develop an encode decode algorithm. Public key is encoded but only the decoded private key
+		// can be used to call the update function.
+
 		fn get_key(origin: OriginFor<T>, shipment_uid: u64) -> Result<[u8; 16], Error<T>> {
 			let transit_node = match ensure_signed(origin) {
 				Ok(val) => val,
