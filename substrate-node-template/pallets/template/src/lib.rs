@@ -28,7 +28,7 @@
 		pub owner_index: u8,
 		pub route: BoundedVec<T::AccountId, T::MaxSize>,
 		pub destination: T::AccountId,
-		pub shipment_uid: u64,
+		pub uid: u64,
 		pub status: ShipmentStatus,
 	}
 
@@ -116,7 +116,7 @@
 	>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn shipment_uid)]
+	#[pallet::getter(fn uid)]
 	pub(super) type UID<T:Config> = StorageValue<
 		_,
 		u64,
@@ -178,7 +178,7 @@
 			ensure!(route_vec.len() > 1, Error::<T>::InvalidRoute);
 			ensure!(route_vec.iter().all(|node| Self::transit_nodes().contains(&node)), Error::<T>::InvalidRoute);
 
-			let shipment_uid = Self::shipment_uid().checked_add(1).ok_or(ArithmeticError::Overflow)?;
+			let uid = Self::uid().checked_add(1).ok_or(ArithmeticError::Overflow)?;
 			let destination = route_vec.clone().pop().ok_or(Error::<T>::InvalidRoute)?;
 
 			let shipment = Shipment::<T> {
@@ -187,17 +187,17 @@
 				owner_index: 1,
 				route: route_vec,
 				destination: destination,
-				shipment_uid: shipment_uid.clone(),
+				uid: uid.clone(),
 				status: ShipmentStatus::InTransit
 			};
 
-			ensure!(!UIDToShipment::<T>::contains_key(&shipment_uid), Error::<T>::ShipmentAlreadyExists);
-			UIDToShipment::<T>::insert(&shipment_uid, &shipment);
+			ensure!(!UIDToShipment::<T>::contains_key(&uid), Error::<T>::ShipmentAlreadyExists);
+			UIDToShipment::<T>::insert(&uid, &shipment);
 
 			let key = Self::gen_key();
-			UIDToKey::<T>::insert(&shipment_uid, &key);
+			UIDToKey::<T>::insert(&uid, &key);
 
-			UID::<T>::put(shipment_uid);
+			UID::<T>::put(uid);
 
 			Self::deposit_event(Event::ShipmentCreated(transit_node));
 			Ok(())
@@ -208,7 +208,7 @@
 
 			let transit_node = ensure_signed(origin)?;
 			let mut shipment = Self::uid_to_shipment(shipment_uid).ok_or(Error::<T>::ShipmentNotFound)?;
-			let shipment_uid = shipment.shipment_uid;
+			let shipment_uid = shipment.uid;
 
 			ensure!(UIDToKey::<T>::contains_key(&shipment_uid), Error::<T>::UIDNotFound);
 			ensure!(Self::shipment_uid_to_key(&shipment_uid).unwrap() == key, Error::<T>::InvalidKey);
