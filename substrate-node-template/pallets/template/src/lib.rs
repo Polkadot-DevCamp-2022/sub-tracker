@@ -36,7 +36,6 @@
 		InTransit,
 		Delivered,
 		Failed,
-		Unavailable,
 	}
 
 	// The struct on which we build all of our Pallet logic.
@@ -214,6 +213,7 @@
 			match shipment.owner_index == shipment.route.len() as u8 - 1 {
 				true => {
 					// Shipment has reached end destination
+					shipment.owner_index = 0;
 					shipment.status = ShipmentStatus::Delivered;
 					UidToShipment::<T>::insert(&shipment_uid, &shipment);
 					Self::deposit_event(Event::ShipmentReceived(transit_node));
