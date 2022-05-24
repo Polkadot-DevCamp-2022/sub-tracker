@@ -203,32 +203,32 @@
 		}
 
 		#[pallet::weight(0)]
-		pub fn update_shipment(origin: OriginFor<T>, shipment_uid: u64, key: [u8; 16]) -> DispatchResult {
+		pub fn update_shipment(origin: OriginFor<T>, uid: u64, key: [u8; 16]) -> DispatchResult {
 
 			let transit_node = ensure_signed(origin)?;
-			let mut shipment = Self::uid_to_shipment(shipment_uid).ok_or(Error::<T>::ShipmentNotFound)?;
-			let shipment_uid = shipment.uid;
+			let mut shipment = Self::uid_to_shipment(uid).ok_or(Error::<T>::ShipmentNotFound)?;
+			let uid = shipment.uid;
 
-			ensure!(UIDToKey::<T>::contains_key(&shipment_uid), Error::<T>::UIDNotFound);
-			ensure!(Self::shipment_uid_to_key(&shipment_uid).unwrap() == key, Error::<T>::InvalidKey);
-			ensure!(UIDToShipment::<T>::contains_key(&shipment_uid), Error::<T>::ShipmentNotFound);
+			ensure!(UIDToKey::<T>::contains_key(&uid), Error::<T>::UIDNotFound);
+			ensure!(Self::shipment_uid_to_key(&uid).unwrap() == key, Error::<T>::InvalidKey);
+			ensure!(UIDToShipment::<T>::contains_key(&uid), Error::<T>::ShipmentNotFound);
 			ensure!(&transit_node == shipment.route.get(shipment.owner_index as usize).unwrap(), Error::<T>::UnauthorizedCaller);
-			UIDToKey::<T>::remove(&shipment_uid);
+			UIDToKey::<T>::remove(&uid);
 
 			match transit_node == shipment.destination {
 				true => {
 					// Shipment has reached end destination
 					shipment.owner_index = 0;
 					shipment.status = ShipmentStatus::Delivered;
-					UIDToShipment::<T>::insert(&shipment_uid, &shipment);
+					UIDToShipment::<T>::insert(&uid, &shipment);
 					Self::deposit_event(Event::ShipmentReceived(transit_node));
 				},
 				false => {
 					// Shipment is still in transit
 					shipment.owner_index = shipment.owner_index + 1;
 					let new_key = Self::gen_key();
-					UIDToKey::<T>::insert(&shipment_uid, &new_key);
-					UIDToShipment::<T>::insert(&shipment_uid, &shipment);
+					UIDToKey::<T>::insert(&uid, &new_key);
+					UIDToShipment::<T>::insert(&uid, &shipment);
 					Self::deposit_event(Event::ShipmentUpdated(transit_node));
 				}
 			}
