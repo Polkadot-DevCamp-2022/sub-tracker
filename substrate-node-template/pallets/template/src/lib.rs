@@ -38,7 +38,6 @@
 		InTransit,
 		Delivered,
 		Failed,
-		Unavailable,
 	}
 
 	// The struct on which we build all of our Pallet logic.
@@ -219,6 +218,7 @@
 			match transit_node == shipment.destination {
 				true => {
 					// Shipment has reached end destination
+					shipment.owner_index = 0;
 					shipment.status = ShipmentStatus::Delivered;
 					UIDToShipment::<T>::insert(&shipment_uid, &shipment);
 					Self::deposit_event(Event::ShipmentReceived(transit_node));
