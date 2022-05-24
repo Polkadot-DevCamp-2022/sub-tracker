@@ -33,7 +33,7 @@ When TP11 receives the package, the following actions will be carried out:
 ### Entities
 
 1. Manager: One account that manages a number of transit points and has the power to add or remove transit points. _Alternatives to a centralized entity?_
-2. Transit Points: Each transit point has a unique id and serves as both a sender and receiver of packages. In the MVP, each originating transit point also sets the route and calls a blockchain function that creates a secret key for the next transit point. The secret key is also embedded in the physical package for the receiver and only the correct receiver can decode the key in order to keep the package moving along the shipment chain. The key generation process repeats at every step.
+2. Transit Points: Each transit point has a unique id and serves as both a sender and receiver of packages. In the MVP, each originating transit point also sets the route and calls a blockchain function that creates a secret for the next transit point. This key is used to generate a machine readable code at the transit points nad this code is embedded in the physical package. At the reciving transit point and the machine readable code is read to reveal the key. The combination of correct key and the correct owner is used to verify the integrity of the package and that of the supply chain.
 3. Customers: In the MVP, customers can only access the state of the chain for the current location and status of the package.
 
 ## Technical Design Todo
