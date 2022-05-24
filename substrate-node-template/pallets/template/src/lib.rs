@@ -116,7 +116,7 @@
 
 	#[pallet::storage]
 	#[pallet::getter(fn uid)]
-	pub(super) type UID<T:Config> = StorageValue<
+	pub(super) type ShipmentsCount<T:Config> = StorageValue<
 		_,
 		u64,
 		ValueQuery,
@@ -196,7 +196,7 @@
 			let key = Self::gen_key();
 			UIDToKey::<T>::insert(&uid, &key);
 
-			UID::<T>::put(uid);
+			ShipmentsCount::<T>::put(uid);
 
 			Self::deposit_event(Event::ShipmentCreated(transit_node));
 			Ok(())
