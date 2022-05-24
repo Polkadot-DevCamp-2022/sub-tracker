@@ -195,10 +195,10 @@
 
 			let key = Self::gen_key();
 			UIDToKey::<T>::insert(&shipment_uid, &key);
-
 			ShipmentUID::<T>::put(shipment_uid);
 
 			Self::deposit_event(Event::ShipmentCreated(transit_node));
+
 			Ok(())
 		}
 
@@ -207,12 +207,12 @@
 
 			let transit_node = ensure_signed(origin)?;
 			let mut shipment = Self::uid_to_shipment(shipment_uid).ok_or(Error::<T>::ShipmentNotFound)?;
-			let shipment_uid = shipment.uid;
 
 			ensure!(UIDToKey::<T>::contains_key(&shipment_uid), Error::<T>::UIDNotFound);
 			ensure!(Self::shipment_uid_to_key(&shipment_uid).unwrap() == key, Error::<T>::InvalidKey);
 			ensure!(UIDToShipment::<T>::contains_key(&shipment_uid), Error::<T>::ShipmentNotFound);
 			ensure!(&transit_node == shipment.route.get(shipment.owner_index as usize).unwrap(), Error::<T>::UnauthorizedCaller);
+
 			UIDToKey::<T>::remove(&shipment_uid);
 
 			match transit_node == shipment.destination {
@@ -232,6 +232,7 @@
 					Self::deposit_event(Event::ShipmentUpdated(transit_node));
 				}
 			}
+
 			Ok(())
 		}
 	}
