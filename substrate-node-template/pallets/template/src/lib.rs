@@ -2,6 +2,12 @@
 
   pub use pallet::*;
 
+  #[cfg(test)]
+  mod mock;
+
+  #[cfg(test)]
+  mod tests;
+
   #[frame_support::pallet]
   pub mod pallet {
 
@@ -14,6 +20,7 @@
 	use sp_io::hashing::blake2_128;
 	use sp_runtime::ArithmeticError;
 	use sp_std::vec::Vec;
+
 
 	#[cfg(feature = "std")]
 	use frame_support::serde::{Deserialize, Serialize};
