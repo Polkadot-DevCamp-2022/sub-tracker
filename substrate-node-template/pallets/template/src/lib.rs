@@ -206,7 +206,7 @@
 			ensure!(Self::transit_nodes().contains(&node1) && Self::transit_nodes().contains(&node2), Error::<T>::TransitPointNotFound);
 
 			RouteCosts::<T>::insert(node1.clone(),node2.clone(),cost.clone());
-			RouteCosts::<T>::insert(node2.clone(),node2.clone(),cost.clone());
+			RouteCosts::<T>::insert(node2.clone(),node1.clone(),cost.clone());
 
 			Self::deposit_event(Event::NeighbourUpdated(node1,node2));
 
