@@ -16,7 +16,10 @@
 		traits::{Currency, Randomness},
 	};
 	use frame_system::pallet_prelude::*;
-	use scale_info::TypeInfo;
+	use scale_info::{
+		TypeInfo,
+		prelude::collections::binary_heap,
+	};
 	use sp_io::hashing::blake2_128;
 	use sp_runtime::ArithmeticError;
 	use sp_std::vec::Vec;
@@ -68,6 +71,7 @@
 	pub enum Event<T: Config> {
 		TransitPointCreated(T::AccountId),
 		TransitPointRemoved(T::AccountId),
+		NeighbourUpdated(T::AccountId,T::AccountId),
 		ShipmentCreated(T::AccountId),
 		ShipmentUpdated(T::AccountId),
 		ShipmentReceived(T::AccountId),
@@ -108,6 +112,18 @@
 		Blake2_128Concat,
 		T::AccountId,
 		u32,
+		OptionQuery,
+	>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn route_vec)]
+	pub(super) type RouteVector<T:Config> = StorageDoubleMap<
+		_,
+		Blake2_128Concat,
+		T::AccountId,
+		Blake2_128Concat,
+		T::AccountId,
+		Vec<T::AccountId>,
 		OptionQuery,
 	>;
 
@@ -175,6 +191,24 @@
 			CountForTransitPoints::<T>::put(transit_point_counts);
 
 			Self::deposit_event(Event::TransitPointCreated(transit_node));
+
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn update_neighbour(
+			origin: OriginFor<T>,
+			node1: T::AccountId,
+			node2: T::AccountId,
+			cost: u32
+		) ->DispatchResult {
+			ensure_root(origin)?;
+			ensure!(Self::transit_nodes().contains(&node1) && Self::transit_nodes().contains(&node2), Error::<T>::TransitPointNotFound);
+
+			RouteCosts::<T>::insert(node1.clone(),node2.clone(),cost.clone());
+			RouteCosts::<T>::insert(node2.clone(),node2.clone(),cost.clone());
+
+			Self::deposit_event(Event::NeighbourUpdated(node1,node2));
 
 			Ok(())
 		}
