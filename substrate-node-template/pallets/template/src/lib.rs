@@ -99,6 +99,18 @@
 		ValueQuery,
 	>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn route_costs)]
+	pub(super) type RouteCosts<T:Config> = StorageDoubleMap<
+		_,
+		Blake2_128Concat,
+		T::AccountId,
+		Blake2_128Concat,
+		T::AccountId,
+		u32,
+		OptionQuery,
+	>;
+
 	// shipment_uid -> key map
 	#[pallet::storage]
 	#[pallet::getter(fn shipment_uid_to_key)]
@@ -129,7 +141,6 @@
 		ValueQuery,
 	>;
 
-	// transit_node -> node_uid map
 	#[pallet::storage]
 	#[pallet::getter(fn transit_nodes)]
 	pub(super) type TransitNodes<T:Config> = StorageValue<
@@ -142,16 +153,26 @@
     impl<T: Config> Pallet<T> {
 
 		#[pallet::weight(0)]
-		pub fn create_new_transit_node(origin: OriginFor<T>, transit_node: T::AccountId) -> DispatchResult {
+		pub fn create_new_transit_node(
+			origin: OriginFor<T>,
+			transit_node: T::AccountId,
+			neighbours: BoundedVec<(T::AccountId, u32), T::MaxSize>
+		) -> DispatchResult {
 
 			ensure_root(origin)?;
 			ensure!(!Self::transit_nodes().contains(&transit_node), Error::<T>::TransitPointAlreadyExists);
+			ensure!(
+				neighbours.iter().all(|neighbour| neighbour.0 != transit_node && Self::transit_nodes().contains(&neighbour.0)),
+				Error::<T>::InvalidRoute);
 
+			for neighbour in neighbours.iter() {
+				RouteCosts::<T>::insert(transit_node.clone(), neighbour.0.clone(), neighbour.1);
+				RouteCosts::<T>::insert(neighbour.0.clone(), transit_node.clone(), neighbour.1);
+			}
+
+			TransitNodes::<T>::append(transit_node.clone());
 			let transit_point_counts = Self::count_for_transit_point().checked_add(1).ok_or(ArithmeticError::Overflow)?;
-			let mut new_transit_nodes = Self::transit_nodes();
-			new_transit_nodes.push(transit_node.clone());
 			CountForTransitPoints::<T>::put(transit_point_counts);
-			TransitNodes::<T>::put(new_transit_nodes);
 
 			Self::deposit_event(Event::TransitPointCreated(transit_node));
 
@@ -163,6 +184,16 @@
 
 			ensure_root(origin)?;
 			ensure!(Self::transit_nodes().contains(&transit_node), Error::<T>::TransitPointNotFound);
+
+			RouteCosts::<T>::remove_prefix(&transit_node, None);
+			for node in Self::transit_nodes() {
+				if node == transit_node {
+					continue;
+				}
+				if RouteCosts::<T>::contains_key(&node, &transit_node) {
+					RouteCosts::<T>::remove(&node, &transit_node);
+				}
+			}
 
 			let transit_point_counts = Self::count_for_transit_point().checked_sub(1).ok_or(ArithmeticError::Underflow)?;
 			let mut new_transit_nodes = Self::transit_nodes();
