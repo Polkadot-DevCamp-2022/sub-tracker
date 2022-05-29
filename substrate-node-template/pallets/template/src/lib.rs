@@ -14,6 +14,7 @@
 	use frame_support::{
 		pallet_prelude::*,
 		traits::{Currency, Randomness},
+		BoundedVec,
 	};
 	use frame_system::pallet_prelude::*;
 	use scale_info::{
