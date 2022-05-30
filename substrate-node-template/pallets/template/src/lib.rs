@@ -19,11 +19,10 @@
 	use frame_system::pallet_prelude::*;
 	use scale_info::{
 		TypeInfo,
-		prelude::collections::binary_heap,
 	};
 	use sp_io::hashing::blake2_128;
 	use sp_runtime::ArithmeticError;
-	use sp_std::vec::Vec;
+	use sp_std::{vec,vec::Vec};
 
 
 	#[cfg(feature = "std")]
@@ -37,7 +36,7 @@
 		pub creator: T::AccountId,
 		pub fees: Option<BalanceOf<T>>,
 		pub owner_index: u8,
-		pub route: BoundedVec<T::AccountId, T::MaxSize>,
+		pub route: BoundedVec<T::AccountId,T::MaxSize>,
 		pub destination: T::AccountId,
 		pub uid: u64,
 		pub status: ShipmentStatus,
@@ -100,7 +99,7 @@
 	#[pallet::getter(fn count_for_transit_point)]
 	pub(super) type CountForTransitPoints<T:Config> = StorageValue<
 		_,
-		u8,
+		u64,
 		ValueQuery,
 	>;
 
@@ -165,6 +164,14 @@
 		Vec<T::AccountId>,
 		ValueQuery,
 	>;
+
+	#[pallet::storage]
+	pub(super) type Nonce<T:Config> = StorageValue<
+		_,
+		u32,
+		ValueQuery,
+	>;
+
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {
@@ -243,22 +250,22 @@
 		}
 
 		#[pallet::weight(0)]
-		pub fn create_shipment(origin: OriginFor<T>, route_vec: BoundedVec<T::AccountId, T::MaxSize>) -> DispatchResult {
+		pub fn create_shipment(origin: OriginFor<T>, destination: T::AccountId) -> DispatchResult {
 
 			let transit_node = ensure_signed(origin)?;
-			ensure!(route_vec[0] == transit_node, Error::<T>::CallerIsNotFirstNode);
-			ensure!(route_vec.len() > 1, Error::<T>::InvalidRoute);
-			ensure!(route_vec.iter().all(|node| Self::transit_nodes().contains(&node)), Error::<T>::InvalidRoute);
 
 			let shipment_uid = Self::shipment_uid().checked_add(1).ok_or(ArithmeticError::Overflow)?;
-			let destination = route_vec.clone().pop().ok_or(Error::<T>::InvalidRoute)?;
+			
+			Self::get_random_route(transit_node.clone(), destination.clone());
+
+			//let route1 = Self::route_vec(transit_node.clone(),destination.clone()).unwrap();
 
 			let shipment = Shipment::<T> {
 				creator: transit_node.clone(),
 				fees: None, // Todo: Calculate fees based on the route
 				owner_index: 1,
-				route: route_vec,
-				destination: destination,
+				route: Self::get_random_route(transit_node.clone(),destination.clone()),
+				destination: destination.clone(),
 				uid: shipment_uid.clone(),
 				status: ShipmentStatus::InTransit
 			};
@@ -320,6 +327,126 @@
 				<frame_system::Pallet<T>>::block_number(),
 			);
 			payload.using_encoded(blake2_128)
+		}
+
+		fn get_and_increment_nonce() -> Vec<u8> {
+			let nonce = Nonce::<T>::get();
+			Nonce::<T>::put(nonce.wrapping_add(1));
+			nonce.encode()
+		}
+
+		fn get_random_route(origin: T::AccountId, dest: T::AccountId) -> BoundedVec<T::AccountId,T::MaxSize> {
+
+			let count: u64 = Self::count_for_transit_point();
+			let mut route: BoundedVec<_, _>;
+			let nodes = TransitNodes::<T>::get();
+
+			if count < 3 {
+				//let route_vec1: BoundedVec<_, _> = bounded_vec![origin.clone(),dest.clone()];
+				//let route_vec2: BoundedVec<_, _> = bounded_vec![dest.clone(),origin.clone()];
+
+				route = vec![origin.clone(),dest.clone()].try_into().unwrap();
+
+				//RouteVector::<T>::insert(origin.clone(),dest.clone(),vec![origin.clone(),dest.clone()]);
+				//RouteVector::<T>::insert(dest.clone(),origin.clone(),vec![dest.clone(),origin.clone()]);
+			} else if count >= 3 && count <= 5 {
+				let nonce = Self::get_and_increment_nonce();
+				let rv1 = T::KeyRandomNess::random(&nonce).encode();
+				let mut rn1 = u64::decode(&mut rv1.as_ref()).unwrap();
+				let div2: u64 = 2;
+
+				let rv2 = rn1 % div2;
+
+				match rv2 {
+					0 => {
+						route = vec![origin.clone(),dest.clone()].try_into().unwrap();
+					},
+					1 => {
+						let nonce2 = Self::get_and_increment_nonce();      
+						let mut rv3 = T::KeyRandomNess::random(&nonce2).encode();
+						rn1 = u64::decode(&mut rv3.as_ref()).unwrap();
+						//let count2 = count - 2;
+
+						let mut rv4 = rn1 % count;
+
+						while nodes[rv4 as usize] == origin || nodes[rv4 as usize] == dest {
+							let nonce3 = Self::get_and_increment_nonce();    
+							rv3 = T::KeyRandomNess::random(&nonce3).encode();  
+							rn1 = u64::decode(&mut rv3.as_ref()).unwrap();
+							rv4 = rn1 % count;
+						}
+
+						route = vec![origin.clone(),nodes[rv4 as usize].clone(),dest.clone()].try_into().unwrap();
+ 					},
+					 _ => {
+						 route = vec![].try_into().unwrap();
+					 }
+				}
+			} else  {
+				let nonce = Self::get_and_increment_nonce();
+				let rv1 = T::KeyRandomNess::random(&nonce).encode();
+				let mut rn1 = u64::decode(&mut rv1.as_ref()).unwrap();
+				let div3: u64 = 3;
+
+				let rv2 = rn1 % div3;
+				match rv2 {
+					0 => {
+						route = vec![origin.clone(),dest.clone()].try_into().unwrap();
+					},
+					1 => {
+						let nonce2 = Self::get_and_increment_nonce();      
+						let mut rv3 = T::KeyRandomNess::random(&nonce2).encode();
+						rn1 = u64::decode(&mut rv3.as_ref()).unwrap();
+
+						let mut rv4 = rn1 % count;
+
+						while nodes[rv4 as usize] == origin || nodes[rv4 as usize] == dest {
+							let nonce3 = Self::get_and_increment_nonce();    
+							rv3 = T::KeyRandomNess::random(&nonce3).encode();  
+							rn1 = u64::decode(&mut rv3.as_ref()).unwrap();
+							rv4 = rn1 % count;
+						}
+
+						route = vec![origin.clone(),nodes[rv4 as usize].clone(),dest.clone()].try_into().unwrap();
+
+					},
+					2 => {
+						let nonce2 = Self::get_and_increment_nonce();
+						let mut rv3 = T::KeyRandomNess::random(&nonce2).encode();
+						rn1 = u64::decode(&mut rv3.as_ref()).unwrap();
+						
+
+						let mut rv4 = rn1 % count;
+
+						while nodes[rv4 as usize] == origin || nodes[rv4 as usize] == dest {
+							let nonce3 = Self::get_and_increment_nonce();    
+							rv3 = T::KeyRandomNess::random(&nonce3).encode();
+							rn1 = u64::decode(&mut rv3.as_ref()).unwrap();  
+							rv4 = rn1 % count;
+						}
+
+						let nonce5 = Self::get_and_increment_nonce();    
+						rv3 = T::KeyRandomNess::random(&nonce5).encode();
+						rn1 = u64::decode(&mut rv3.as_ref()).unwrap();  
+						let mut rv5 = rn1 % count;
+
+						while nodes[rv5 as usize] == origin || nodes[rv5 as usize] == dest || rv5 == rv4 {
+							let nonce6 = Self::get_and_increment_nonce();    
+							rv3 = T::KeyRandomNess::random(&nonce6).encode();
+							rn1 = u64::decode(&mut rv3.as_ref()).unwrap();  
+							rv5 = rn1 % count;
+						}
+
+						route = vec![origin.clone(),nodes[rv4 as usize].clone(),nodes[rv5 as usize].clone(),dest.clone()].try_into().unwrap();
+
+					},
+					_ => {
+						route = vec![].try_into().unwrap();
+					}
+				}
+			}
+
+			route
 		}
 
 		// fn set_fees() {}
