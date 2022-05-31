@@ -30,6 +30,8 @@ When TP11 receives the package, the following actions will be carried out:
 
 ## Blockchain Overview
 
+Slides: <https://docs.google.com/presentation/d/1U6y1i2ZFTuHamG2VXajVnKJHbgnUU92Fg4DP0efLqpY/edit#slide=id.g12ebce7dbdb_0_991>
+
 ### Adding Transit Nodes 
 
 New nodes can only be added via Sudo. Adding of nodes require two input arguments:
@@ -52,7 +54,7 @@ Note: This function will fail on multiple scenarios:
 ### Updating Neighbour Costs
 
 Updating of neighbouring nodes cost can only be done via Sudo. Updating of neighbours require three input arguments:
-1. **Account Id**** of first transit node
+1. **Account Id** of first transit node
 2. **Account Id** of second transit node
 3. **Cost** of route between the two specified nodes
 *Note: This function will fail if any one of the account ids have not been added as a transit node*
