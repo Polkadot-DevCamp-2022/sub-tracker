@@ -130,5 +130,5 @@ The frontend is not updated. We are using the [polkadot.js](https://polkadot.js.
 
 ## Technical Design Todo
 
-- Implement algorithm to choose route
+- Implement algorithm to choose route ( We have used randomized routing in the main branch and we are working to optimize shortest route algorithm in the route branch)
 - See how we can make use of off-chain workers (OCW)
