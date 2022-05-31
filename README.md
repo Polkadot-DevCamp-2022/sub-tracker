@@ -30,11 +30,45 @@ When TP11 receives the package, the following actions will be carried out:
 
 ## Blockchain Overview
 
-### Entities
+### Adding Transit Nodes 
 
-1. Manager: One account that manages a number of transit points and has the power to add or remove transit points. _Alternatives to a centralized entity?_
-2. Transit Points: Each transit point has a unique id and serves as both a sender and receiver of packages. In the MVP, each originating transit point also sets the route and calls a blockchain function that creates a key for the next transit point. This key is used to generate a machine readable code at the transit points and this code is embedded in the physical package. At the reciving transit point and the machine readable code is read to reveal the key. The combination of correct key and the correct owner is used to verify the integrity of the package and that of the supply chain.
-3. Customers: In the MVP, customers can only access the state of the chain for the current location and status of the package.
+New nodes can only be added via Sudo. Adding of nodes require two input arguments:
+1. **Account Id** of the transit node to be added
+2. **Vector** of **Account Id** and **Cost** pairings. This vector defines the cost of the route between the new node and existing nodes. i.e. The neighbours of the node to be added
+*Note: This function will fail on multiple scenarios:
+    a. Call is not made by sudo
+    b. Node has already been added
+    c. Account Id of node to be added is included in the vector
+    d. Account Id of any node in vector has not been added as a transit node*
+
+### Removing Transit Nodes
+
+Nodes can only be removed via Sudo. Removing of nodes require one input argument:
+1. **Account Id** of transit node to be removed
+Note: This function will fail on multiple scenarios:
+    a. Call is not made by sudo
+    b. Node has not been added as a transit node
+
+### Updating Neighbour Costs
+
+Updating of neighbouring nodes cost can only be done via Sudo. Updating of neighbours require three input arguments:
+1. **Account Id**** of first transit node
+2. **Account Id** of second transit node
+3. **Cost** of route between the two specified nodes
+*Note: This function will fail if any one of the account ids have not been added as a transit node*
+
+### Creating Shipments
+
+Shipments can be created via signed transactions by any transit node. Shipment routes are defaulted to begin at the transit node that created the shipment. Creating of shipments require one input argument:
+1. **Destination** of the shipment. The most cost efficient route will then be computed based on the source and destination of the shipment
+
+### Updating Shipments
+
+Shipments can be updated via signed transactions by the current receiver of a shipment. Updating of shipments requires one input argument:
+1. **Shipment UID**
+*Note: This function will fail on multiple scenarios:
+    a. Call is not made by current receiver of shipment
+    b. Shipment UID could not be found*
 
 ## Usage
 
