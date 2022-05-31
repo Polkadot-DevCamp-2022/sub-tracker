@@ -36,7 +36,8 @@ Slides: <https://docs.google.com/presentation/d/1U6y1i2ZFTuHamG2VXajVnKJHbgnUU92
 
 New nodes can only be added via Sudo. Adding of nodes require two input arguments:
 1. **Account Id** of the transit node to be added
-2. **Vector** of **Account Id** and **Cost** pairings. This vector defines the cost of the route between the new node and existing nodes. i.e. The neighbours of the node to be added
+2. **Vector** of **Account Id** and **Cost** pairings. This vector defines the cost of the route between the new node and existing nodes. i.e. The neighbours of the node to be added<br>
+
 *Note: This function will fail on multiple scenarios:
     a. Call is not made by sudo
     b. Node has already been added
@@ -46,17 +47,19 @@ New nodes can only be added via Sudo. Adding of nodes require two input argument
 ### Removing Transit Nodes
 
 Nodes can only be removed via Sudo. Removing of nodes require one input argument:
-1. **Account Id** of transit node to be removed
-Note: This function will fail on multiple scenarios:
+1. **Account Id** of transit node to be removed<br>
+
+*Note: This function will fail on multiple scenarios:
     a. Call is not made by sudo
-    b. Node has not been added as a transit node
+    b. Node has not been added as a transit node*
 
 ### Updating Neighbour Costs
 
 Updating of neighbouring nodes cost can only be done via Sudo. Updating of neighbours require three input arguments:
 1. **Account Id** of first transit node
 2. **Account Id** of second transit node
-3. **Cost** of route between the two specified nodes
+3. **Cost** of route between the two specified nodes<br>
+
 *Note: This function will fail if any one of the account ids have not been added as a transit node*
 
 ### Creating Shipments
@@ -67,7 +70,8 @@ Shipments can be created via signed transactions by any transit node. Shipment r
 ### Updating Shipments
 
 Shipments can be updated via signed transactions by the current receiver of a shipment. Updating of shipments requires one input argument:
-1. **Shipment UID**
+1. **Shipment UID**<br>
+
 *Note: This function will fail on multiple scenarios:
     a. Call is not made by current receiver of shipment
     b. Shipment UID could not be found*
