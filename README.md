@@ -34,6 +34,14 @@ Slides: <https://docs.google.com/presentation/d/1U6y1i2ZFTuHamG2VXajVnKJHbgnUU92
 
 ### Adding Transit Nodes 
 
+```
+pub fn create_new_transit_node(
+			origin: OriginFor<T>,
+			transit_node: T::AccountId,
+			neighbours: BoundedVec<(T::AccountId, u32), T::MaxSize>
+		) 
+ ```
+
 New nodes can only be added via Sudo. Adding of nodes require two input arguments:
 1. **Account Id** of the transit node to be added
 2. **Vector** of **Account Id** and **Cost** pairings. This vector defines the cost of the route between the new node and existing nodes. i.e. The neighbours of the node to be added<br>
@@ -46,6 +54,15 @@ New nodes can only be added via Sudo. Adding of nodes require two input argument
 
 ### Removing Transit Nodes
 
+```
+pub fn update_neighbour(
+			origin: OriginFor<T>,
+			node1: T::AccountId,
+			node2: T::AccountId,
+			cost: u32
+		)
+```
+
 Nodes can only be removed via Sudo. Removing of nodes require one input argument:
 1. **Account Id** of transit node to be removed<br>
 
@@ -54,6 +71,10 @@ Nodes can only be removed via Sudo. Removing of nodes require one input argument
     b. Node has not been added as a transit node*
 
 ### Updating Neighbour Costs
+
+```
+pub fn remove_transit_node(origin: OriginFor<T>, transit_node: T::AccountId)
+```
 
 Updating of neighbouring nodes cost can only be done via Sudo. Updating of neighbours require three input arguments:
 1. **Account Id** of first transit node
@@ -64,17 +85,34 @@ Updating of neighbouring nodes cost can only be done via Sudo. Updating of neigh
 
 ### Creating Shipments
 
+```
+pub fn create_shipment(origin: OriginFor<T>, destination: T::AccountId)
+```
+
+
 Shipments can be created via signed transactions by any transit node. Shipment routes are defaulted to begin at the transit node that created the shipment. Creating of shipments require one input argument:
 1. **Destination** of the shipment. The most cost efficient route will then be computed based on the source and destination of the shipment
 
 ### Updating Shipments
 
-Shipments can be updated via signed transactions by the current receiver of a shipment. Updating of shipments requires one input argument:
-1. **Shipment UID**<br>
+```
+pub fn update_shipment(origin: OriginFor<T>, shipment_uid: u64, key: [u8; 16])
+```
+
+Shipments can be updated via signed transactions by the current receiver of a shipment. Updating of shipments requires two input argument:
+1. **Shipment UID**
+2. **key**<br>
+
+In a real world scenario , key can be decoded from the machine readable cde embedded into the package. For testing, we can use the getter shipment_uid_to_key() to get the key. This function accepts the shipment uid and returns the key. 
 
 *Note: This function will fail on multiple scenarios:
     a. Call is not made by current receiver of shipment
     b. Shipment UID could not be found*
+    
+   
+### Tracking Shipments
+
+Shipments can be tracked by the UID of each shipment. Getter function uid_to_shipment() accepts the uid and returns the shipment struct which contains all the updated information about the package.
 
 ## Usage
 
@@ -85,6 +123,10 @@ cd substrate-node-template
 cargo build --release
 cargo run --release -- --dev --tmp
 ```
+
+### Frontend
+
+The frontend is not updated. We are using the [polkadot.js](https://polkadot.js.org/apps) to test the backend.
 
 ## Technical Design Todo
 
