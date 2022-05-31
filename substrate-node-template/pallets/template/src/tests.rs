@@ -35,5 +35,23 @@ fn it_removes_transit_node() {
 	});
 }
 
+#[test]
+fn it_adds_more_nodes() {
+	new_test_ext().execute_with(|| {
+		// Check number of transit nodes. should be 0
+		assert_eq!(AssetTracking::count_for_transit_point(),0);
+		// Create Transit Node 1
+		assert_ok!(AssetTracking::create_new_transit_node(Origin::root(),1,bounded_vec![]));
+		// Check number of transit nodes. should be 1
+		assert_eq!(AssetTracking::count_for_transit_point(),1);
+		// Create Transit Node 2
+		assert_ok!(AssetTracking::create_new_transit_node(Origin::root(),2,bounded_vec![(1,10)]));
+		// Check number of transit nodes. should be 1
+		assert_eq!(AssetTracking::count_for_transit_point(),2);
+		
+	});
+}
+
+
 
 

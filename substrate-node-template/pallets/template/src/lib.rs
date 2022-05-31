@@ -256,8 +256,6 @@
 
 			let shipment_uid = Self::shipment_uid().checked_add(1).ok_or(ArithmeticError::Overflow)?;
 			
-			Self::get_random_route(transit_node.clone(), destination.clone());
-
 			//let route1 = Self::route_vec(transit_node.clone(),destination.clone()).unwrap();
 
 			let shipment = Shipment::<T> {
