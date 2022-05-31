@@ -36,10 +36,9 @@ Slides: <https://docs.google.com/presentation/d/1U6y1i2ZFTuHamG2VXajVnKJHbgnUU92
 
 ```
 pub fn create_new_transit_node(
-			origin: OriginFor<T>,
-			transit_node: T::AccountId,
-			neighbours: BoundedVec<(T::AccountId, u32), T::MaxSize>
-		) 
+    origin: OriginFor<T>,
+    transit_node: T::AccountId,
+    neighbours: BoundedVec<(T::AccountId, u32), T::MaxSize>) 
  ```
 
 New nodes can only be added via Sudo. Adding of nodes require two input arguments:
@@ -56,11 +55,10 @@ New nodes can only be added via Sudo. Adding of nodes require two input argument
 
 ```
 pub fn update_neighbour(
-			origin: OriginFor<T>,
-			node1: T::AccountId,
-			node2: T::AccountId,
-			cost: u32
-		)
+    origin: OriginFor<T>,
+    node1: T::AccountId,
+    node2: T::AccountId,
+    cost: u32)
 ```
 
 Nodes can only be removed via Sudo. Removing of nodes require one input argument:
