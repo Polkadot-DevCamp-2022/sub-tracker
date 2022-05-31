@@ -1,0 +1,3 @@
+[submodule "sub-tracker-frontend"]
+	path = sub-tracker-frontend
+	url = https://github.com/steel-feel/sub-tracker-frontend.git
