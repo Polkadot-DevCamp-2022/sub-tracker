@@ -262,7 +262,7 @@
 				creator: transit_node.clone(),
 				fees: None, // Todo: Calculate fees based on the route
 				owner_index: 1,
-				route: Self::get_random_route(transit_node.clone(),destination.clone()),
+				route: Self::get_shortest_path(transit_node.clone(),destination.clone()),
 				destination: destination.clone(),
 				uid: shipment_uid.clone(),
 				status: ShipmentStatus::InTransit
@@ -445,6 +445,105 @@
 			}
 
 			route
+		}
+
+		pub fn get_shortest_path(origin: T::AccountId,destination: T::AccountId) -> BoundedVec<T::AccountId,T::MaxSize> {
+			let count: u32 = Self::count_for_transit_point() as u32;
+			let nodes = TransitNodes::<T>::get();
+			let capacity: u32 = count*count;
+			let mut graph: Vec<u32> = Vec::<u32>::new();
+			let mut path = Vec::<u32>::new();
+			let mut vroute = Vec::<T::AccountId>::new();
+			let mut i: u32 = 0;
+			let mut j: u32 = 0;
+
+			for u in 0..count {
+				let src: T::AccountId = nodes[u as usize].clone();
+				for v in 0..count {
+					let dest: T::AccountId = nodes[v as usize].clone();
+					let ind = u * count + v;
+					graph.push(RouteCosts::<T>::get(src.clone(),dest.clone()).clone().unwrap());
+				}
+			}
+
+			for u in 0..count {
+				if nodes[u as usize].clone() == origin.clone() {
+					i = u;
+				}
+
+				if nodes[u as usize].clone() == destination.clone() {
+					j = u;
+				}
+			}
+
+			path = Self::shortest_path_a_b(graph,count,i,j);
+
+			for u in 0..path.len() {
+				vroute.push(nodes[path[u as usize] as usize].clone());
+			}
+
+			let route: BoundedVec<_, _> = vroute.try_into().unwrap();
+
+			route
+
+		}
+
+		pub fn min_dist(dist: Vec<u32>,visited: Vec<bool>) -> u32 {
+			let mut min: u32 = u32::MAX;
+			let mut mindex = min;
+			let N = dist.len();
+		
+			for i in 0..N {
+				if dist[i as usize] <= min && visited[i as usize] == false {
+					min = dist[i as usize];
+					mindex = i as u32;
+				}
+			}
+		
+			mindex
+		}
+
+		pub fn collect_route_ab(route: Vec<i32>, l: usize,path:&mut Vec<u32>) {
+			if route[l] != -1 {
+				Self::collect_route_ab(route.clone(),route[l as usize].clone().try_into().unwrap(),path);
+				path.push(l.clone() as u32);
+			}
+		}
+		
+		pub fn shortest_path_a_b(graph: Vec<u32>,N: u32,s: u32,dest: u32 ) -> Vec<u32> {
+			let mut visited = Vec::<bool>::new();
+			let mut dist = Vec::<u32>::new();
+			let mut route = Vec::<i32>::new();
+			let mut path = Vec::<u32>::new();
+		
+			for _i in 0..N {
+				visited.push(false);
+				dist.push(u32::MAX);
+				route.push(-1);
+			}
+		
+			dist[s as usize] = 0;
+		
+			for _i in 0..N.clone()-1 {
+				let u: u32 = Self::min_dist(dist.clone(),visited.clone());
+				visited[u as usize] = true;
+		
+				for v in 0..N.clone() {
+					let ind = u * N.clone() + v;
+					if !visited[v as usize] && graph[ind as usize] != 0 && dist[u as usize] != u32::MAX && (dist[u as usize] + graph[ind as usize] < dist[v as usize]) {
+						dist[v as usize] = dist[u as usize] + graph[ind as usize];
+						route[v as usize] = u as i32;
+					}
+				}
+		
+			}
+		
+			path.push(s);
+		
+			Self::collect_route_ab(route.clone(), dest.clone() as usize,&mut path);
+		
+			path
+		
 		}
 
 		// fn set_fees() {}
